@@ -7,6 +7,9 @@
 #make prettier
 #clean up code
 #packs
+#separate operator and passenger (hide operator)
+
+
 #!/usr/bin/env python3
 """
 E-BIYAHE - Tkinter dispatch and monitoring app for the automated guided e-jeepney diorama.
