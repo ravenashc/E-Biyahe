@@ -5,7 +5,7 @@ E-BIYAHE - Tkinter dispatch and monitoring app for the automated guided e-jeepne
 Run:   python ebiyahe_app.py        (Python 3.8+, Tkinter only, nothing to pip install)
 
 HOW THE SERVICE WORKS (on-demand)
-  The jeep drives a one-way loop (TL > TR > BR > BL) and parks in the depot when idle.
+  The jeep drives a one-way loop, counterclockwise (BR > TR > TL > BL), and parks in the depot when idle.
   At every station tag it reads, the jeep stops ONLY if
       1. someone is waiting there (a booked pickup), or
       2. someone on board booked a drop-off there (armed only AFTER that rider boarded), or
@@ -32,7 +32,7 @@ MESSAGES (one JSON object per line)
      "ir":"010","pick":[0,1,0,0],"drop":[0,0,0,1],"wait":[7],"ride":[]}
     state = PARKED | RUNNING | LOADING_UNLOADING | OBSTACLE_HOLD | LINE_LOST | EMERGENCY_STOP | LOW_BATTERY
     next  = index of the next station tag the jeep will read; the last station is (next - 1) mod 4.
-            While parked, next is 3 (the jeep leaves the depot toward BL).
+            While parked, next is 0 (the jeep leaves the depot toward BR).
     pick/drop = people waiting / on board per station;  wait/ride = booking ids waiting / on board
     paused = new requests refused (low battery, or returning to the depot)
     LOW_BATTERY is also used for "returning to depot" ordered by the operator.
@@ -238,26 +238,26 @@ def apply_theme(root):
 
 # Stations in the order the jeep visits them, with their position on the 600 x 650 map.
 STOPS = [
-    ("TL Station", (175, 50)),
-    ("TR Station", (425, 50)),
     ("BR Station", (550, 395)),
+    ("TR Station", (425, 50)),
+    ("TL Station", (175, 50)),
     ("BL Station", (50, 395)),
 ]
 N = len(STOPS)
 LEG_PATHS = [                  # leg i = from station i to station i+1 (map points)
-    [(175, 50), (425, 50)],
-    [(425, 50), (550, 50), (550, 395)],
-    [(550, 395), (550, 510), (50, 510), (50, 395)],
-    [(50, 395), (50, 50), (175, 50)],
+    [(550, 395), (550, 50), (425, 50)],
+    [(425, 50), (175, 50)],
+    [(175, 50), (50, 50), (50, 395)],
+    [(50, 395), (50, 510), (550, 510), (550, 395)],
 ]
 BLOCKS = [(75, 75, 275, 255), (325, 75, 525, 255), (75, 305, 275, 485), (325, 305, 525, 485)]
-LABEL_POS = [(0, -16, "s"), (0, -16, "s"), (-14, 0, "e"), (14, 0, "w")]   # label placement per station
+LABEL_POS = [(-14, 0, "e"), (0, -16, "s"), (0, -16, "s"), (14, 0, "w")]   # label placement per station
 
-# The depot hangs off leg 2 (BR > BL). Leaving it, the jeep joins the loop toward BL.
+# The depot hangs off leg 3 (BL > BR). Leaving it, the jeep joins the loop toward BR.
 DEPOT_POS = (200, 615)
-EXIT_PATH = [DEPOT_POS, (200, 510), (50, 510), (50, 395)]
-EXIT_STOP = 3                  # the first station tag after leaving the depot (BL)
-DEPOT_LEG = 2                  # the leg where the depot-entry tag sits
+EXIT_PATH = [DEPOT_POS, (200, 510), (550, 510), (550, 395)]
+EXIT_STOP = 0                  # the first station tag after leaving the depot (BR)
+DEPOT_LEG = 3                  # the leg where the depot-entry tag sits
 
 STATES = ("PARKED", "RUNNING", "LOADING_UNLOADING", "OBSTACLE_HOLD", "LINE_LOST", "EMERGENCY_STOP", "LOW_BATTERY")
 MOVING = ("RUNNING", "LOW_BATTERY")
@@ -337,8 +337,8 @@ def rrect(x1, y1, x2, y2, r):
             x1, y1 + r, x1, y1]
 
 
-# fraction of leg 2 at which the depot-entry tag sits (where the spur leaves the road)
-DEPOT_FRAC = path_len([(550, 395), (550, 510), (200, 510)]) / path_len(LEG_PATHS[DEPOT_LEG])
+# fraction of leg 3 at which the depot-entry tag sits (where the spur leaves the road)
+DEPOT_FRAC = path_len([(50, 395), (50, 510), (200, 510)]) / path_len(LEG_PATHS[DEPOT_LEG])
 EXIT = -1                       # "leg number" of the depot -> BL exit path
 
 
