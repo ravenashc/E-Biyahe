@@ -1,3 +1,12 @@
+#continue 3,4,5
+#make jeepney look better
+#add scroll
+#add pretty bg
+#better fonts
+#better spacings/layouts
+#make prettier
+#clean up code
+#packs
 #!/usr/bin/env python3
 """
 E-BIYAHE - Tkinter dispatch and monitoring app for the automated guided e-jeepney diorama.
