@@ -238,7 +238,7 @@ def apply_theme(root):
 
 # Stations in the order the jeep visits them, with their position on the 600 x 650 map.
 STOPS = [
-    ("TL Station", (175, 280)),
+    ("TL Station", (175, 50)),
     ("TR Station", (425, 50)),
     ("BR Station", (550, 395)),
     ("BL Station", (50, 395)),
