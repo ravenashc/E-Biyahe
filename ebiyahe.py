@@ -944,7 +944,7 @@ class App(tk.Tk):
         super().__init__()
         apply_theme(self)              # fonts, colors and ttk styles (see THEME section)
         self.title(APP_TITLE)
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jeep2.png")
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jeep3.jpg")
         if os.path.exists(icon_path):
             self._app_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._app_icon)
@@ -1778,10 +1778,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# IMAGES
-import os
-icon_path = os.path.join(os.path.dirname(__file__), "jeep2.png")
-if os.path.exists(icon_path):
-    self._app_icon = tk.PhotoImage(file=icon_path)
-    self.iconphoto(True, self._app_icon)
