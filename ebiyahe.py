@@ -245,13 +245,13 @@ STOPS = [
 ]
 N = len(STOPS)
 LEG_PATHS = [                  # leg i = from station i to station i+1 (map points)
-    [(175, 280), (300, 280), (300, 50), (425, 50)],
+    [(175, 50), (425, 50)],
     [(425, 50), (550, 50), (550, 395)],
     [(550, 395), (550, 510), (50, 510), (50, 395)],
-    [(50, 395), (50, 280), (175, 280)],
+    [(50, 395), (50, 50), (175, 50)],
 ]
 BLOCKS = [(75, 75, 275, 255), (325, 75, 525, 255), (75, 305, 275, 485), (325, 305, 525, 485)]
-LABEL_POS = [(0, 16, "n"), (0, -16, "s"), (-14, 0, "e"), (14, 0, "w")]   # label placement per station
+LABEL_POS = [(0, -16, "s"), (0, -16, "s"), (-14, 0, "e"), (14, 0, "w")]   # label placement per station
 
 # The depot hangs off leg 2 (BR > BL). Leaving it, the jeep joins the loop toward BL.
 DEPOT_POS = (200, 615)
