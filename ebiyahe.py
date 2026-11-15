@@ -171,14 +171,6 @@ FONT_SCALE = (                   # (font name, size in points, weight)
 PAD_S, PAD, PAD_L = 4, 8, 12     # small, normal and large gaps in pixels
 WRAP = 330                       # width in pixels at which long text wraps
 
-# IMAGES
-        import os
-        icon_path = os.path.join(os.path.dirname(__file__), "jeep2.png")
-        if os.path.exists(icon_path):
-            self._app_icon = tk.PhotoImage(file=icon_path)
-            self.iconphoto(True, self._app_icon)
-
-
 
 def apply_theme(root):
     """Create the named fonts and style every ttk widget. Call once, right after the window exists."""
@@ -952,6 +944,10 @@ class App(tk.Tk):
         super().__init__()
         apply_theme(self)              # fonts, colors and ttk styles (see THEME section)
         self.title(APP_TITLE)
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jeep2.png")
+        if os.path.exists(icon_path):
+            self._app_icon = tk.PhotoImage(file=icon_path)
+            self.iconphoto(True, self._app_icon)
         self.geometry("1200x780")
         self.minsize(1000, 740)
         self.q = queue.Queue()
@@ -1782,3 +1778,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# IMAGES
+import os
+icon_path = os.path.join(os.path.dirname(__file__), "jeep2.png")
+if os.path.exists(icon_path):
+    self._app_icon = tk.PhotoImage(file=icon_path)
+    self.iconphoto(True, self._app_icon)
