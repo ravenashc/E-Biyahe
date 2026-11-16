@@ -10,6 +10,7 @@
 #separate operator and passenger (hide operator)
 
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 E-BIYAHE - Tkinter dispatch and monitoring app for the automated guided e-jeepney diorama.
 
@@ -71,7 +72,7 @@ Edit the CONFIG block to match your diorama, fares and hours.
 #   JEEP STATE AND ETA MODEL    the app's notebook of what the jeep reports, plus ETA guesses
 #   SIMULATED JEEP              the pretend jeep used by Demo mode
 #   DATA SOURCES                the two messengers (Demo and Wi-Fi) that bring messages in
-#   WIDGETS                     small reusable screen parts (the status badge)
+#   WIDGETS                     small reusable screen parts (status badge, message bar)
 #   APP                         the window: layout, buttons, events, refreshing, map drawing
 # ----------------------------------------------------------------------------------
 
@@ -111,6 +112,7 @@ BATT_DRAIN_V_PER_S = 0.002     # demo bus only
 CHARGE_V_PER_S = 0.05          # demo bus only (fast, so the demo does not take long)
 OPEN_TIME, CLOSE_TIME = "06:00", "21:00"
 SERVICE_DAYS = "Monday to Sunday"
+MESSAGE_S = {"info": 5, "ok": 5, "warn": 8, "error": 8}   # seconds a message stays in the message bar
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "log.csv")
 
 # ======================= THEME (colors, fonts, spacing) =======================
@@ -143,7 +145,9 @@ PALETTE = {
     "map_bg": "#eef1ee",
     "map_block": "#d3e6cc",
     "map_block_edge": "#a9c2a2",
-    "map_road": "#222222",
+    "map_road": "#5b6470",       # main roads (soft slate gray)
+    "map_road_line": "#e5e7eb",  # dashed line down the middle of the main road
+    "map_street": "#c3cad0",     # decorative side streets (the jeep never drives these)
     "map_depot_fill": "#e5e7eb",
     "map_depot_edge": "#9ca3af",
     "map_route": "#9ec5fe",      # highlight for the trip being planned
@@ -262,7 +266,7 @@ LEG_PATHS = [                  # leg i = from station i to station i+1 (map poin
     [(50, 395), (50, 510), (550, 510), (550, 395)],
 ]
 BLOCKS = [(75, 75, 275, 255), (325, 75, 525, 255), (75, 305, 275, 485), (325, 305, 525, 485)]
-LABEL_POS = [(-14, 0, "e"), (0, -16, "s"), (0, -16, "s"), (14, 0, "w")]   # label placement per station
+LABEL_POS = [(-1, 0, "e"), (0, -1, "s"), (0, -1, "s"), (1, 0, "w")]   # per station: (x direction, y direction, text anchor) = which side of the circle its name sits on
 
 # The depot hangs off leg 3 (BL > BR). Leaving it, the jeep joins the loop toward BR.
 DEPOT_POS = (200, 615)
@@ -340,6 +344,11 @@ def to_float(v, default):
         return float(v)
     except (TypeError, ValueError):
         return default
+
+
+def set_enabled(widget, on):
+    """Enable (on=True) or disable (on=False) a ttk widget such as a button."""
+    widget.state(["!disabled"] if on else ["disabled"])
 
 
 def rrect(x1, y1, x2, y2, r):
@@ -938,16 +947,51 @@ class StatusBadge(ttk.Frame):
         self.label.config(text=text, foreground=color)
 
 
+class MessageBar(ttk.Frame):
+    """One-line message area at the bottom of the window.
+    Every confirmation, warning and error from any tab appears here, in the same place and with the
+    same colored dot, then the bar returns to 'Ready.' after a few seconds (see MESSAGE_S)."""
+
+    LEVEL_COLOR = {"info": "muted", "ok": "ok", "warn": "warn", "error": "danger"}
+    READY_TEXT = "Ready."
+
+    def __init__(self, parent):
+        super().__init__(parent, style="CardInner.TFrame")
+        self.timer = None                         # the pending "return to Ready" timer, if any
+        # ----- divider line above the bar -----
+        ttk.Separator(self).pack(side="top", fill="x")
+        # ----- colored dot and message text -----
+        row = ttk.Frame(self, style="CardInner.TFrame", padding=(PAD, PAD_S))
+        row.pack(fill="x")
+        self.dot = tk.Canvas(row, width=16, height=16, bg=PALETTE["card"], highlightthickness=0)
+        self.dot_id = self.dot.create_oval(2, 2, 14, 14, fill=PALETTE["disabled"], outline="")
+        self.dot.pack(side="left")
+        self.label = ttk.Label(row, text=self.READY_TEXT, style="Card.TLabel")
+        self.label.pack(side="left", padx=(PAD_S, 0))
+        row.bind("<Configure>", lambda e: self.label.config(wraplength=max(200, e.width - 48)))   # wrap long text
+
+    def show(self, text, level="info"):
+        """Show `text` with a dot in the color for `level` ('info', 'ok', 'warn' or 'error'),
+        then go back to 'Ready.' after MESSAGE_S[level] seconds. A newer message replaces an older one."""
+        if self.timer:
+            self.after_cancel(self.timer)
+        self.dot.itemconfig(self.dot_id, fill=PALETTE[self.LEVEL_COLOR[level]])
+        self.label.config(text=text)
+        self.timer = self.after(int(MESSAGE_S[level] * 1000), self.clear)
+
+    def clear(self):
+        """Return to the quiet 'Ready.' state."""
+        self.timer = None
+        self.dot.itemconfig(self.dot_id, fill=PALETTE["disabled"])
+        self.label.config(text=self.READY_TEXT)
+
+
 # ======================= APP =======================
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         apply_theme(self)              # fonts, colors and ttk styles (see THEME section)
         self.title(APP_TITLE)
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jeep3.jpg")
-        if os.path.exists(icon_path):
-            self._app_icon = tk.PhotoImage(file=icon_path)
-            self.iconphoto(True, self._app_icon)
         self.geometry("1200x780")
         self.minsize(1000, 740)
         self.q = queue.Queue()
@@ -974,6 +1018,9 @@ class App(tk.Tk):
         """Assemble the window: menu bar, map on the left, status and tabs on the right."""
         # ----- menu bar -----
         self.build_menu()
+        # ----- message bar at the bottom: all feedback appears here -----
+        self.bar = MessageBar(self)
+        self.bar.pack(side="bottom", fill="x")
         # ----- main frame -----
         root = ttk.Frame(self, padding=PAD)
         root.pack(fill="both", expand=True)
@@ -1039,7 +1086,7 @@ class App(tk.Tk):
         # ----- values shown in this card (changing one updates the screen) -----
         self.v_next, self.v_eta, self.v_etaclock = tk.StringVar(), tk.StringVar(), tk.StringVar()
         self.v_last, self.v_batt = tk.StringVar(), tk.StringVar(value="Battery: -")
-        self.v_alert, self.v_note = tk.StringVar(), tk.StringVar()
+        self.v_alert = tk.StringVar()
 
         # ----- header: live state badge (left) and last station (right) -----
         self.badge = StatusBadge(card)
@@ -1068,13 +1115,9 @@ class App(tk.Tk):
         self.lbl_alert.grid(row=6, column=0, columnspan=2, sticky="w", pady=(PAD, 0))
         self.lbl_alert.grid_remove()
 
-        # ----- Para button and the jeep's reply to it (reply line appears only when there is one) -----
-        ttk.Button(card, text="Para: stop at the next station", style="Primary.TButton",
-                   command=self.do_para).grid(row=7, column=0, columnspan=2, sticky="we", pady=(PAD, 0))
-        self.lbl_note = ttk.Label(card, textvariable=self.v_note, style="CardMuted.TLabel", wraplength=WRAP)
-        self.lbl_note.grid(row=8, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
-        self.lbl_note.grid_remove()
-        self.v_note.trace_add("write", lambda *_: self.lbl_note.grid() if self.v_note.get() else self.lbl_note.grid_remove())
+        # ----- Para button (the jeep's reply appears in the message bar) -----
+        self.btn_para = ttk.Button(card, text="Para: stop at the next station", style="Primary.TButton", command=self.do_para)
+        self.btn_para.grid(row=7, column=0, columnspan=2, sticky="we", pady=(PAD, 0))
 
     def build_trip(self, nb):
         """Plan trip tab: choose stations and passenger type, see fare and times, request a ride."""
@@ -1085,6 +1128,8 @@ class App(tk.Tk):
         self.cat_var = tk.StringVar(value="Regular")
         ttk.Label(f, text="Ride on at").grid(row=0, column=0, sticky="w")
         ttk.Combobox(f, values=self.names, textvariable=self.from_var, state="readonly", width=16).grid(row=0, column=1, sticky="w", pady=PAD_S)
+        ttk.Button(f, text="\u21c5 Swap", command=self.swap_stations).grid(row=0, column=1, rowspan=2, sticky="e", padx=(PAD, 0))
+        f.columnconfigure(1, minsize=300)          # room for a combobox plus the Swap button, so the tab does not widen
         ttk.Label(f, text="Get off at").grid(row=1, column=0, sticky="w")
         ttk.Combobox(f, values=self.names, textvariable=self.to_var, state="readonly", width=16).grid(row=1, column=1, sticky="w", pady=PAD_S)
         ttk.Label(f, text="Passenger").grid(row=2, column=0, sticky="w")
@@ -1099,10 +1144,14 @@ class App(tk.Tk):
                                     ("Total", self.v_total), ("You arrive at", self.v_arrive)], start=5):
             ttk.Label(f, text=t).grid(row=r, column=0, sticky="w")
             ttk.Label(f, textvariable=v, font=F_HEADING).grid(row=r, column=1, sticky="w")
-        # ----- request button and its message -----
-        ttk.Button(f, text="Request ride", style="Primary.TButton", command=self.do_request).grid(row=9, column=0, columnspan=2, sticky="we", pady=(PAD, 0))
-        self.v_tmsg = tk.StringVar()
-        ttk.Label(f, textvariable=self.v_tmsg, wraplength=WRAP, style="Muted.TLabel").grid(row=10, column=0, columnspan=2, sticky="w", pady=(PAD, 0))
+        # ----- request button (its result appears in the message bar) -----
+        self.btn_request = ttk.Button(f, text="Request ride", style="Primary.TButton", command=self.do_request)
+        self.btn_request.grid(row=9, column=0, columnspan=2, sticky="we", pady=(PAD, 0))
+        # ----- reason the button is disabled (hidden while the button works) -----
+        self.v_reqhint = tk.StringVar()
+        self.lbl_reqhint = ttk.Label(f, textvariable=self.v_reqhint, wraplength=WRAP, style="Muted.TLabel")
+        self.lbl_reqhint.grid(row=10, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
+        self.lbl_reqhint.grid_remove()
         return f
 
     def build_rides(self, nb):
@@ -1113,10 +1162,14 @@ class App(tk.Tk):
             self.rtree.heading(c, text=t)
             self.rtree.column(c, width=w, anchor="w")
         self.rtree.pack(fill="x")
-        ttk.Button(f, text="Cancel selected ride", command=self.do_cancel).pack(anchor="w", pady=PAD)
-        self.v_rnote = tk.StringVar(value="No rides yet. Use Plan trip > Request ride.")
-        ttk.Label(f, textvariable=self.v_rnote, wraplength=WRAP, style="Muted.TLabel").pack(anchor="w")
-        ttk.Label(f, text="A ride can be cancelled until the jeep has picked you up. ETA is the pickup, then the drop-off.",
+        self.rtree.bind("<<TreeviewSelect>>", lambda e: self.refresh_controls(time.time()))   # update Cancel at once
+        self.btn_cancel = ttk.Button(f, text="Cancel selected ride", command=self.do_cancel)
+        self.btn_cancel.pack(anchor="w", pady=PAD)
+        self.rides_hint = "No rides yet. Use Plan trip > Request ride."
+        self.lbl_rempty = ttk.Label(f, text=self.rides_hint, wraplength=WRAP, style="Muted.TLabel")
+        self.lbl_rempty.pack(anchor="w")                  # empty-table hint: blank once there are rides
+        ttk.Label(f, text="Select a ride and press Cancel. A ride can be cancelled until the jeep has picked you up. "
+                          "ETA is the pickup, then the drop-off.",
                   wraplength=WRAP, style="Muted.TLabel").pack(anchor="w", pady=(PAD, 0))
         return f
 
@@ -1148,11 +1201,14 @@ class App(tk.Tk):
         # ----- dispatch buttons -----
         bar = ttk.Frame(f)
         bar.pack(fill="x")
-        ttk.Button(bar, text="Dispatch", style="Primary.TButton", command=self.do_dispatch).pack(side="left")
-        ttk.Button(bar, text="Return to depot", command=lambda: self.op("return")).pack(side="left", padx=PAD)
-        ttk.Button(bar, text="Reset fault", command=lambda: self.op("reset")).pack(side="left")
+        self.btn_dispatch = ttk.Button(bar, text="Dispatch", style="Primary.TButton", command=self.do_dispatch)
+        self.btn_dispatch.pack(side="left")
+        self.btn_return = ttk.Button(bar, text="Return to depot", command=lambda: self.op("return"))
+        self.btn_return.pack(side="left", padx=PAD)
+        self.btn_reset = ttk.Button(bar, text="Reset fault", command=lambda: self.op("reset"))
+        self.btn_reset.pack(side="left")
 
-        # ----- emergency stop (full width and kept apart from the other buttons) -----
+        # ----- emergency stop (full width, kept apart, and NEVER disabled: it must work in every situation) -----
         ttk.Button(f, text="EMERGENCY STOP", style="Danger.TButton",
                    command=lambda: self.op("estop")).pack(fill="x", pady=(PAD, PAD_S))
 
@@ -1177,8 +1233,6 @@ class App(tk.Tk):
                                     ("rides", "Active rides (app)"), ("pick", "Waiting at"), ("drop", "Getting off at"))):
             ttk.Label(rf, text=t).grid(row=r, column=0, sticky="nw")
             ttk.Label(rf, textvariable=self.ov[k], wraplength=WRAP - 30).grid(row=r, column=1, sticky="w", padx=PAD)
-        self.v_omsg = tk.StringVar()
-        ttk.Label(f, textvariable=self.v_omsg, wraplength=WRAP, style="Muted.TLabel").pack(anchor="w", pady=(PAD_S, 0))
         return f
 
     def build_log(self, nb):
@@ -1200,6 +1254,10 @@ class App(tk.Tk):
         return f
 
     # ---------- log and messages ----------
+    def show_message(self, text, level="info"):
+        """Show feedback in the message bar. level: 'info', 'ok' (done), 'warn' (cannot do that) or 'error'."""
+        self.bar.show(text, level)
+
     def log_add(self, text):
         stamp = datetime.now()
         self.logtree.insert("", 0, values=(stamp.strftime("%H:%M:%S"), text))
@@ -1248,12 +1306,18 @@ class App(tk.Tk):
             return f"Too many active rides (limit {MAX_ACTIVE})."
         return None
 
+    def swap_stations(self):
+        """Swap 'Ride on at' and 'Get off at' (handy for the trip back)."""
+        a, b = self.from_var.get(), self.to_var.get()
+        self.from_var.set(b)
+        self.to_var.set(a)
+
     def do_request(self):
         now = time.time()
         a, b = self.trip_ends()
         why = self.reject_reason(a, b, now)
         if why:
-            self.v_tmsg.set("Request rejected: " + why)
+            self.show_message("Request rejected: " + why, "error")
             self.log_add("Request rejected: " + why)
             return
         legs = (b - a) % N
@@ -1262,43 +1326,42 @@ class App(tk.Tk):
         self.next_id += 1
         self.bookings.append(bk)
         self.send({"cmd": "request", "id": bk.id, "from": a, "to": b})
-        self.v_rnote.set("Select a ride and press Cancel to cancel it.")
-        self.v_tmsg.set(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]}, fare {CURRENCY}{bk.fare:.2f} ({cat}). "
-                        "Track it in My rides.")
+        self.show_message(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]}, fare {CURRENCY}{bk.fare:.2f} ({cat}). "
+                          "Track it in My rides.", "ok")
         self.log_add(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]} ({cat}, {CURRENCY}{bk.fare:.2f})")
 
     def do_cancel(self):
         sel = self.rtree.selection()
         if not sel:
-            self.v_rnote.set("Select a ride in the list first.")
+            self.show_message("Select a ride in the list first.", "warn")
             return
         bk = self.book_by_id(int(sel[0]))
         if bk is None:
             return
         if not bk.cancellable:
-            self.v_rnote.set(f"Ride #{bk.id} cannot be cancelled (status: {bk.status.lower()}).")
+            self.show_message(f"Ride #{bk.id} cannot be cancelled (status: {bk.status.lower()}).", "warn")
         elif not self.fresh(time.time()):
-            self.v_rnote.set("Cannot cancel while the jeep is offline. Try again when it reconnects.")
+            self.show_message("Cannot cancel while the jeep is offline. Try again when it reconnects.", "warn")
         else:
             self.send({"cmd": "cancel", "id": bk.id})
-            self.v_rnote.set(f"Cancel sent for ride #{bk.id}...")
+            self.show_message(f"Cancel sent for ride #{bk.id}...", "info")
 
     def do_para(self):
         if not self.fresh(time.time()):
-            self.v_note.set("Para not sent: the jeep is offline.")
+            self.show_message("Para not sent: the jeep is offline.", "warn")
             return
         self.send({"cmd": "para"})
 
     def op(self, cmd, **kw):
         if not (self.source and self.fresh(time.time())):
-            self.v_omsg.set("Not connected to the jeep." + (" For a real emergency use the toggle switch on the jeep!" if cmd == "estop" else ""))
+            self.show_message("Not connected to the jeep." + (" For a real emergency use the toggle switch on the jeep!" if cmd == "estop" else ""),
+                              "error" if cmd == "estop" else "warn")
             return
-        self.v_omsg.set("")
         self.send({"cmd": cmd, **kw})
 
     def do_dispatch(self):
         if self.tr.paused:
-            self.v_omsg.set("Cannot dispatch: the battery is low. Wait for it to recharge.")
+            self.show_message("Cannot dispatch: the battery is low. Wait for it to recharge.", "warn")
         else:
             self.op("dispatch")
 
@@ -1309,16 +1372,16 @@ class App(tk.Tk):
         try:
             v = float(self.dwell_var.get())
         except ValueError:
-            self.v_omsg.set("Dwell time must be a number.")
+            self.show_message("Dwell time must be a number.", "error")
             return
         if not 1 <= v <= 30:
-            self.v_omsg.set("Dwell time must be between 1 and 30 seconds.")
+            self.show_message("Dwell time must be between 1 and 30 seconds.", "error")
             return
         self.op("dwell", value=v)
 
     def sim(self, what, text):
         if not isinstance(self.source, DemoSource):
-            messagebox.showinfo("Demo only", "Connect in Demo mode first, then use this menu.")
+            self.show_message("Connect in Demo mode first, then use the Demo menu.", "warn")
             return
         self.log_add("Demo: " + text.lower())
         self.send({"cmd": "sim", "what": what})
@@ -1339,10 +1402,10 @@ class App(tk.Tk):
         elif ev == "PARA":
             if m.get("ok", True):
                 self.log_add("Para pressed: the jeep will stop at the next station")
-                self.v_note.set("Para accepted: the jeep will stop at the next station.")
+                self.show_message("Para accepted: the jeep will stop at the next station.", "ok")
             else:
                 self.log_add("Para ignored: the jeep is parked")
-                self.v_note.set("Para ignored: the jeep is parked.")
+                self.show_message("Para ignored: the jeep is parked.", "warn")
         elif ev == "OBSTACLE":
             self.log_add(f"Obstacle detected ({m.get('dist', '?')} cm): jeep stopped")
         elif ev == "OBSTACLE_CLEAR":
@@ -1372,12 +1435,12 @@ class App(tk.Tk):
             volts = f" ({m.get('batt')} V)" if ev == "LOW_BATT" else ""
             self.log_add(f"{why.capitalize()}{volts}: {extra}returning to the depot")
             if ids:
-                self.v_rnote.set(f"Ride(s) {', '.join('#' + str(i) for i in ids)} cancelled: the jeep is returning to the depot.")
+                self.show_message(f"Ride(s) {', '.join('#' + str(i) for i in ids)} cancelled: the jeep is returning to the depot.", "warn")
         elif ev == "REJECTED":
             b = self.book_by_id(m.get("id"))
             if b and b.active:
                 b.status, b.note = "REJECTED", str(m.get("reason", ""))
-            self.v_tmsg.set("Rejected by the jeep: " + str(m.get("reason", "")))
+            self.show_message("Rejected by the jeep: " + str(m.get("reason", "")), "error")
             self.log_add(f"Ride #{m.get('id')} rejected by the jeep: {m.get('reason', '')}")
         elif ev == "CANCELLED":
             b = self.book_by_id(m.get("id"))
@@ -1386,10 +1449,10 @@ class App(tk.Tk):
             if m.get("ok"):
                 if b.active:
                     b.status, b.note = "CANCELLED", "by you"
-                self.v_rnote.set(f"Ride #{b.id} cancelled.")
+                self.show_message(f"Ride #{b.id} cancelled.", "ok")
                 self.log_add(f"Ride #{b.id} cancelled by the passenger")
             else:
-                self.v_rnote.set(f"Too late: ride #{b.id} is already on board.")
+                self.show_message(f"Too late: ride #{b.id} is already on board.", "warn")
 
     def sync_bookings(self, now):
         """Bring the bookings in line with the jeep's wait/ride lists (the jeep is the truth)."""
@@ -1423,15 +1486,15 @@ class App(tk.Tk):
         else:
             host = self.host_var.get().strip()
             if not host:
-                self.v_conn.set("Enter the jeep's host address")
+                self.show_message("Enter the jeep's host address.", "error")
                 return
             try:
                 port = int(self.port_var.get())
             except ValueError:
-                self.v_conn.set("Port must be a number")
+                self.show_message("Port must be a number.", "error")
                 return
             if not 1 <= port <= 65535:
-                self.v_conn.set("Port must be between 1 and 65535")
+                self.show_message("Port must be between 1 and 65535.", "error")
                 return
             self.source = TcpSource(host, port, self.q)
         self.tr.clear()
@@ -1455,17 +1518,55 @@ class App(tk.Tk):
         if up:
             self.tr.clear()
             self.log_add("Connected to the jeep")
+            self.show_message("Connected to the jeep.", "ok")
             self.send({"cmd": "sync", "ids": [b.id for b in self.bookings if b.active]})
             self.send({"cmd": "mode", "value": self.svc_var.get()})
             self.send({"cmd": "dwell", "value": to_float(self.dwell_var.get(), DWELL_S)})
         elif self.source:
             self.log_add("Connection lost")
+            self.show_message("Connection to the jeep lost. Trying again...", "warn")
 
     def on_close(self):
         self.disconnect()
         self.destroy()
 
     # ---------- periodic update ----------
+    def refresh_controls(self, now):
+        """Enable each button only while its action can work, so people are not told 'no' after clicking.
+        The emergency stop is never disabled."""
+        tr = self.tr
+        online = self.fresh(now)
+        on_road = online and not tr.depot          # the jeep is out driving, not parked in the depot
+
+        # ----- Plan trip: Request ride (the reason is shown under the button while it is disabled) -----
+        a, b = self.trip_ends()
+        why = self.reject_reason(a, b, now)
+        set_enabled(self.btn_request, why is None)
+        if why is None or a == b:                  # (same-station is already explained in the trip summary)
+            hint = ""
+        elif not self.source:
+            hint = "Connect to the jeep first (Connection box above)."
+        else:
+            hint = why
+        self.v_reqhint.set(hint)
+        if hint:
+            self.lbl_reqhint.grid()
+        else:
+            self.lbl_reqhint.grid_remove()
+
+        # ----- Status card: Para (only while the jeep is out on the road) -----
+        set_enabled(self.btn_para, on_road)
+
+        # ----- My rides: Cancel (needs a selected ride that is not picked up yet, and a live jeep) -----
+        sel = self.rtree.selection()
+        ride = self.book_by_id(int(sel[0])) if sel else None
+        set_enabled(self.btn_cancel, bool(online and ride and ride.cancellable))
+
+        # ----- Operator: Dispatch, Return and Reset (Emergency stop is left alone) -----
+        set_enabled(self.btn_dispatch, online and tr.state == "PARKED" and not tr.paused)
+        set_enabled(self.btn_return, on_road and not tr.paused)
+        set_enabled(self.btn_reset, online and tr.state in ("EMERGENCY_STOP", "LINE_LOST"))
+
     def tick(self):
         now = time.time()
         got_status = False
@@ -1489,6 +1590,7 @@ class App(tk.Tk):
         self.refresh_rides(now)
         self.refresh_schedule(now)
         self.refresh_operator(now)
+        self.refresh_controls(now)
         self.draw_dynamic(now)
         self.after(250, self.tick)
 
@@ -1643,6 +1745,8 @@ class App(tk.Tk):
                 self.rtree.item(str(b.id), values=vals)
             else:
                 self.rtree.insert("", "end", iid=str(b.id), values=vals)
+        # ----- empty-table hint -----
+        self.lbl_rempty.config(text="" if self.bookings else self.rides_hint)
 
     def refresh_schedule(self, now):
         t = datetime.now().time()
@@ -1695,64 +1799,130 @@ class App(tk.Tk):
     def w2c(self, p):
         return (self.ox + p[0] * self.sc, self.oy + p[1] * self.sc)
 
+    def stop_radius(self):
+        """Radius in pixels of a station circle at the current map zoom (big enough to hold its number)."""
+        return max(11, 13 * self.sc)
+
     def draw_static(self):
+        """Draw the parts of the map that never move: blocks, roads, depot, stations and the map key.
+        Called again only when the map is resized."""
         c = self.cv
         c.delete("all")
         cw, ch = max(c.winfo_width(), 200), max(c.winfo_height(), 200)
         self.sc = min((cw - 50) / 600.0, (ch - 50) / 650.0)
         self.ox, self.oy = (cw - 600 * self.sc) / 2, (ch - 650 * self.sc) / 2
         P, s = self.w2c, self.sc
+
+        # ----- city blocks (green decoration) -----
         for x1, y1, x2, y2 in BLOCKS:
             a, b = P((x1, y1)), P((x2, y2))
             c.create_polygon(rrect(a[0], a[1], b[0], b[1], 14 * s), smooth=True, fill=PALETTE["map_block"], outline=PALETTE["map_block_edge"], tags="block")
-        w = max(3, 5 * s)
+
+        # ----- side streets (decoration only: the jeep never drives on these, so they are thin and light) -----
+        for p1, p2 in (((300, 50), (300, 510)), ((50, 280), (550, 280))):
+            c.create_line(*P(p1), *P(p2), fill=PALETTE["map_street"], width=max(3, 4 * s), tags="road")
+
+        # ----- main loop road: soft gray with a dashed center line -----
+        w = max(5, 8 * s)
         a, b = P((50, 50)), P((550, 510))
-        c.create_polygon(rrect(a[0], a[1], b[0], b[1], 40 * s), smooth=True, fill="", outline=PALETTE["map_road"], width=w, tags="road")
-        for p1, p2 in (((300, 50), (300, 510)), ((50, 280), (550, 280)), ((200, 510), (200, 600))):
-            c.create_line(*P(p1), *P(p2), fill=PALETTE["map_road"], width=w, tags="road")
-        a, b = P((160, 600)), P((240, 630))
+        loop = rrect(a[0], a[1], b[0], b[1], 40 * s)
+        c.create_polygon(loop, smooth=True, fill="", outline=PALETTE["map_road"], width=w, tags="road")
+        c.create_polygon(loop, smooth=True, fill="", outline=PALETTE["map_road_line"], width=1, dash=(8, 8), tags="road")
+
+        # ----- depot: road, box and label (the label sits beside the box so a parked jeep does not cover it) -----
+        c.create_line(*P((200, 510)), *P((200, 598)), fill=PALETTE["map_road"], width=w, tags="road")
+        a, b = P((150, 598)), P((250, 634))
         c.create_rectangle(a[0], a[1], b[0], b[1], fill=PALETTE["map_depot_fill"], outline=PALETTE["map_depot_edge"], tags="road")
-        c.create_text((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, text="Depot", font=(FONT_FAMILY, max(9, int(8 * s * 1.6))))
-        for path in LEG_PATHS:                                       # direction arrows
+        x, y = P((142, 616))
+        c.create_text(x, y, text="Depot", anchor="e", fill=PALETTE["text"], font=(FONT_FAMILY, max(9, int(8 * s * 1.6))), tags="road")
+
+        # ----- direction arrows (white on the road, one per leg) -----
+        for path in LEG_PATHS:
             p1, p2 = point_at(path, 0.47), point_at(path, 0.53)
-            c.create_line(*P(p1), *P(p2), arrow=tk.LAST, arrowshape=(10, 12, 5), fill=PALETTE["muted"], width=2, tags="road")
-        r = max(8, 10 * s)
+            c.create_line(*P(p1), *P(p2), arrow=tk.LAST, arrowshape=(10, 12, 5), fill=PALETTE["on_color"], width=2, tags="road")
+
+        # ----- stations: a numbered circle with the name beside it -----
+        r = self.stop_radius()
+        gap = r + 16                                   # distance from the circle to its name (clears the rings)
         for i, (name, pos) in enumerate(STOPS):
             x, y = P(pos)
             c.create_oval(x - r, y - r, x + r, y + r, fill=PALETTE["card"], outline=PALETTE["accent"], width=3, tags="stop")
-            dx, dy, anc = LABEL_POS[i]
-            c.create_text(x + dx, y + dy, text=f"{i + 1}. {name}", anchor=anc, font=(FONT_FAMILY, max(9, int(9 * s * 1.5)), "bold"), tags="stop")
+            c.create_text(x, y, text=str(i + 1), fill=PALETTE["accent"], font=(FONT_FAMILY, max(9, int(8 * s * 1.3)), "bold"), tags="stop")
+            ux, uy, anc = LABEL_POS[i]
+            c.create_text(x + ux * gap, y + uy * gap, text=name, anchor=anc, fill=PALETTE["text"],
+                          font=(FONT_FAMILY, max(9, int(9 * s * 1.5)), "bold"), tags="stop")
+
+        # ----- map key and the moving layer -----
+        self.draw_legend(cw, ch, s)
         self.draw_dynamic(time.time())
 
+    def draw_legend(self, cw, ch, s):
+        """Small key in the bottom-right corner explaining the rings and the highlight.
+        Skipped when the window is too small to leave room below the loop road."""
+        items = (("Waiting for pickup", "map_pickup", None), ("Rider getting off", "map_drop", None),
+                 ("Last station", "ok", None), ("Next stop", "map_next", (4, 3)), ("Planned trip", "map_route", "bar"))
+        row, width = 20, 172
+        height = PAD * 2 + row * (len(items) + 1) - 4
+        x0, y0 = cw - width - 12, ch - height - 12
+        if y0 < self.oy + 525 * s:
+            return
+        c = self.cv
+        # ----- key background and title -----
+        c.create_polygon(rrect(x0, y0, x0 + width, y0 + height, 8), smooth=True, fill=PALETTE["card"], outline=PALETTE["border"], tags="legend")
+        c.create_text(x0 + PAD, y0 + PAD, text="Map key", anchor="nw", fill=PALETTE["text"], font=F_SMALL_BOLD, tags="legend")
+        # ----- one row per symbol -----
+        for k, (label, color, style) in enumerate(items, start=1):
+            y = y0 + PAD + row * k + 9
+            ix = x0 + PAD + 9
+            if style == "bar":
+                c.create_line(ix - 9, y, ix + 9, y, width=8, fill=PALETTE[color], capstyle="round", tags="legend")
+            else:
+                c.create_oval(ix - 7, y - 7, ix + 7, y + 7, outline=PALETTE[color], width=3, dash=style, tags="legend")
+            c.create_text(ix + 20, y, text=label, anchor="w", fill=PALETTE["text"], font=F_SMALL, tags="legend")
+
     def draw_dynamic(self, now):
+        """Redraw the parts of the map that change: the planned-trip highlight, rings and the jeep."""
         c, P, s, tr = self.cv, self.w2c, self.sc, self.tr
         c.delete("dyn")
-        a, b = self.trip_ends()                                      # highlight the planned ride
+
+        # ----- highlight along the planned ride -----
+        a, b = self.trip_ends()
         if a != b:
             for k in range((b - a) % N):
                 pts = [P(p) for p in LEG_PATHS[(a + k) % N]]
                 c.create_line(*[v for p in pts for v in p], width=max(10, 13 * s), fill=PALETTE["map_route"], capstyle="round", joinstyle="round", tags=("dyn", "hl"))
             c.tag_lower("hl", "road")
+
+        # ----- last-station ring (green) and next-stop ring (dashed amber) -----
         fresh = self.fresh(now)
-        r = max(13, 16 * s)
+        r = self.stop_radius() + 6
         if fresh and tr.state != "PARKED":
             if not tr.depot:
                 lx, ly = P(STOPS[tr.last_stop][1])
-                c.create_oval(lx - r - 4, ly - r - 4, lx + r + 4, ly + r + 4, outline=PALETTE["ok"], width=3, tags="dyn")
+                c.create_oval(lx - r, ly - r, lx + r, ly + r, outline=PALETTE["ok"], width=3, tags="dyn")
             nx, ny = P(STOPS[tr.next_stop][1])
-            c.create_oval(nx - r - 4, ny - r - 4, nx + r + 4, ny + r + 4, outline=PALETTE["map_next"], width=3, dash=(4, 3), tags="dyn")
+            c.create_oval(nx - r, ny - r, nx + r, ny + r, outline=PALETTE["map_next"], width=3, dash=(4, 3), tags="dyn")
+
+        # ----- pickup and drop-off rings -----
         self.draw_requests(now)
+
+        # ----- the jeep: a rounded body with two wheels, colored by its state -----
         bx, by = P(tr.position())
         col = STATE_COLOR.get(tr.state, PALETTE["muted"]) if fresh else PALETTE["disabled"]
-        br = max(15, 17 * s)
-        c.create_oval(bx - br, by - br, bx + br, by + br, fill=col, outline=PALETTE["on_color"], width=2, tags="dyn")
-        c.create_text(bx, by, text="JEEP", fill=PALETTE["on_color"], font=(FONT_FAMILY, max(8, int(7 * s * 1.2)), "bold"), tags="dyn")
+        bw, bh = max(22, 26 * s), max(12, 14 * s)
+        wr = max(3, 4 * s)
+        for wx in (bx - bw * 0.55, bx + bw * 0.55):                                   # wheels (drawn first, body covers the top half)
+            c.create_oval(wx - wr, by + bh - wr, wx + wr, by + bh + wr, fill=PALETTE["text"], outline="", tags="dyn")
+        c.create_polygon(rrect(bx - bw, by - bh, bx + bw, by + bh, bh * 0.7), smooth=True, fill=col, outline=PALETTE["on_color"], width=2, tags="dyn")
+        c.create_text(bx, by, text="JEEP", fill=PALETTE["on_color"], font=(FONT_FAMILY, max(9, int(7 * s * 1.4)), "bold"), tags="dyn")
+
+        # ----- small labels next to the jeep and the depot -----
         if fresh and tr.state in ("RUNNING", "LOW_BATTERY", "OBSTACLE_HOLD", "LINE_LOST") and tr.leg_start is not None:
-            c.create_text(bx, by + br + 9, text="estimated", fill=PALETTE["muted"], font=F_SMALL, tags="dyn")
+            c.create_text(bx, by + bh + wr + 8, text="estimated", fill=PALETTE["muted"], font=F_SMALL, tags="dyn")
         if fresh and tr.para:
-            c.create_text(bx, by - br - 9, text="PARA", fill=PALETTE["map_pickup"], font=F_SMALL_BOLD, tags="dyn")
+            c.create_text(bx, by - bh - 10, text="PARA", fill=PALETTE["map_pickup"], font=F_SMALL_BOLD, tags="dyn")
         if fresh and tr.depot and tr.lowbatt:
-            x, y = P((200, 645))
+            x, y = P((200, 646))
             c.create_text(x, y, text="charging", fill=PALETTE["muted"], font=F_SMALL, tags="dyn")
 
     def draw_requests(self, now):
@@ -1764,7 +1934,7 @@ class App(tk.Tk):
             if not (pick or drop):
                 continue
             x, y = P(STOPS[i][1])
-            r = max(14, 17 * s) + 4 * math.sin(now * 4)
+            r = self.stop_radius() + 6 + 3 * math.sin(now * 4)       # pulses gently around the station circle
             col = PALETTE["map_pickup"] if pick else PALETTE["map_drop"]
             c.create_oval(x - r, y - r, x + r, y + r, outline=col, width=3, tags="dyn")
             label = " + ".join(t for t, n in (("PICKUP", pick), ("DROP", drop)) if n)
