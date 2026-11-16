@@ -1,14 +1,3 @@
-#continue 3,4,5
-#make jeepney look better
-#add scroll
-#add pretty bg
-#better fonts
-#better spacings/layouts
-#make prettier
-#clean up code
-#packs
-#separate operator and passenger (hide operator)
-
 #!/usr/bin/env python3
 """
 E-BIYAHE - Tkinter dispatch and monitoring app for the automated guided e-jeepney diorama.
@@ -54,6 +43,13 @@ MESSAGES (one JSON object per line)
   Booking states in the app come from the STATUS lists wait/ride, so a missed event or a short
   Wi-Fi drop cannot leave a ride stuck.
 
+KEYBOARD AND TEXT SIZE
+  Everything can be done without a mouse. Press F1 (or open the menus) to see every shortcut:
+  Ctrl+1 ... Ctrl+5 switch tabs, Ctrl+R requests a ride, Ctrl+P is Para, Ctrl+Shift+E is the emergency
+  stop, and Ctrl++ / Ctrl+- / Ctrl+0 make the text larger, smaller or normal (remembered in
+  data/settings.json). On a Mac use Cmd instead of Ctrl. Tab moves between controls, Space or Enter
+  presses a button, and the arrow keys choose radio buttons and table rows.
+
 Firmware note: latch every tag read until the state machine has handled it. If an obstacle or
 fault wins priority on the same loop pass as a tag read, the tag must not be lost.
 
@@ -83,10 +79,11 @@ import os
 import queue
 import random
 import socket
+import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from tkinter import font as tkfont      # named fonts used by the THEME section
 from datetime import datetime
 
@@ -113,6 +110,11 @@ OPEN_TIME, CLOSE_TIME = "06:00", "21:00"
 SERVICE_DAYS = "Monday to Sunday"
 MESSAGE_S = {"info": 5, "ok": 5, "warn": 8, "error": 8}   # seconds a message stays in the message bar
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "log.csv")
+SETTINGS_FILE = os.path.join(os.path.dirname(LOG_FILE), "settings.json")    # remembers the text size between runs
+TEXT_SIZES = (100, 115, 130, 150)   # text size steps in percent of normal (the first one is the normal size)
+TAB_NAMES = ("Plan trip", "My rides", "Schedule", "Operator", "Log")        # tab order: Ctrl+1 ... Ctrl+5
+IS_MAC = sys.platform == "darwin"
+MOD, MOD_NAME = ("Command", "Cmd") if IS_MAC else ("Control", "Ctrl")      # the main shortcut key
 
 # ======================= THEME (colors, fonts, spacing) =======================
 # Every color, font and spacing value used on screen lives in this section. To restyle the app,
@@ -153,6 +155,18 @@ PALETTE = {
     "map_next": "#f59e0b",       # dashed ring on the next station
     "map_pickup": "#ea580c",     # ring: someone is waiting to board
     "map_drop": "#2563eb",       # ring: a rider is getting off
+    # log table
+    "stripe": "#f0f4f2",         # every second row of the Log table (plain rows)
+}
+
+# ----- log rows: one entry per severity -----
+# level: (label in the Level column and the export, text color, fill of even rows, fill of odd rows)
+# The two fills alternate so the table stays striped even when neighbouring rows share a severity.
+LOG_LEVELS = {
+    "info": ("Info", PALETTE["text"], PALETTE["card"], PALETTE["stripe"]),         # routine: stops, passes, mode
+    "ok": ("OK", PALETTE["ok"], "#f0f9f3", "#e8f5ed"),                             # done or recovered
+    "warn": ("Warn", PALETTE["warn"], "#fef8ec", "#fcf1dc"),                       # caution: rejected, low battery, offline
+    "danger": ("Alert", PALETTE["danger"], "#fdeeee", "#fbe1e1"),                  # obstacle, line lost, emergency stop
 }
 
 # ----- fonts (one family, five sizes) -----
@@ -166,9 +180,11 @@ FONT_SCALE = (                   # (font name, size in points, weight)
     (F_TITLE, 14, "bold"),       # key numbers: ETA, fare, live state
     (F_HEADING, 11, "bold"),     # labels that need weight, button text, group titles
     (F_BODY, 10, "normal"),      # normal text
-    (F_SMALL, 9, "normal"),      # hints and secondary detail
-    (F_SMALL_BOLD, 9, "bold"),   # small labels on the map
+    (F_SMALL, 10, "normal"),     # hints and secondary detail (nothing on screen is smaller than 10 pt)
+    (F_SMALL_BOLD, 10, "bold"),  # small labels on the map
 )
+DEFAULT_PT = 10                  # size of the plain Tk default fonts (entry boxes, drop-down lists, menus)
+MAP_MIN_PT = 10                  # map labels follow the map zoom but never go below this size
 
 # ----- spacing (one scale, so gaps look the same everywhere) -----
 PAD_S, PAD, PAD_L = 4, 8, 12     # small, normal and large gaps in pixels
@@ -188,7 +204,7 @@ def apply_theme(root):
         # keep a reference: Tk deletes a named font as soon as its Python object is garbage collected
         FONT_OBJECTS.append(tkfont.Font(root=root, name=name, family=FONT_FAMILY, size=size, weight=weight))
     for default in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
-        tkfont.nametofont(default).configure(family=FONT_FAMILY, size=10)
+        tkfont.nametofont(default).configure(family=FONT_FAMILY, size=DEFAULT_PT)
 
     # ----- window and base style -----
     root.configure(bg=P["bg"])
@@ -216,7 +232,8 @@ def apply_theme(root):
           foreground=[("disabled", P["disabled"])])
     for name, base, hover in (("Primary", "accent", "accent_dark"), ("Danger", "danger", "danger_dark")):
         s.configure(f"{name}.TButton", background=P[base], foreground=P["on_color"],
-                    bordercolor=P[base], font=F_HEADING)
+                    bordercolor=P[base], font=F_HEADING,
+                    focuscolor=P["on_color"])       # white keyboard-focus ring: a teal ring is invisible on a teal button
         s.map(f"{name}.TButton", background=[("active", P[hover]), ("disabled", P["disabled"])],
               foreground=[("disabled", P["on_color"])])
     s.configure("Danger.TButton", padding=(PAD_L, PAD))     # the emergency button is taller
@@ -238,6 +255,9 @@ def apply_theme(root):
         s.configure(widget, fieldbackground=P["card"], foreground=P["text"], bordercolor=P["border"],
                     padding=2)               # tight, so forms stay short
     s.map("TCombobox", fieldbackground=[("readonly", P["card"])])
+    for widget in ("TEntry", "TCombobox", "TSpinbox"):      # teal outline on the box that has the keyboard focus
+        s.map(widget, bordercolor=[("focus", P["accent"])], lightcolor=[("focus", P["accent"])],
+              darkcolor=[("focus", P["accent"])])
     s.configure("TRadiobutton", background=P["bg"])
     s.map("TRadiobutton", background=[("active", P["bg"])])
     s.configure("TSeparator", background=P["border"])
@@ -246,6 +266,18 @@ def apply_theme(root):
     for name, color in (("Ok", "ok"), ("Warn", "warn"), ("Danger", "danger")):
         s.configure(f"{name}.Horizontal.TProgressbar", troughcolor=P["border"], background=P[color],
                     bordercolor=P["border"], lightcolor=P[color], darkcolor=P[color], thickness=10)
+
+
+def apply_text_size(root, percent):
+    """Scale every font to `percent` of its normal size and keep the table rows tall enough for it.
+    Safe to call at any time: Tk redraws each widget that uses these fonts."""
+    f = percent / 100.0
+    for font, (_name, size, _weight) in zip(FONT_OBJECTS, FONT_SCALE):
+        font.configure(size=round(size * f))
+    for default in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
+        tkfont.nametofont(default).configure(size=round(DEFAULT_PT * f))
+    body = next(font for font, (name, _s, _w) in zip(FONT_OBJECTS, FONT_SCALE) if name == F_BODY)
+    ttk.Style(root).configure("Treeview", rowheight=max(21, body.metrics("linespace") + 3))
 
 
 # ======================= MAP LAYOUT AND JEEP STATES =======================
@@ -348,6 +380,33 @@ def to_float(v, default):
 def set_enabled(widget, on):
     """Enable (on=True) or disable (on=False) a ttk widget such as a button."""
     widget.state(["!disabled"] if on else ["disabled"])
+
+
+def chord(key, shift=False):
+    """Tk key patterns for MOD+key (or MOD+Shift+key). Letters are bound in both cases, so Caps Lock
+    cannot break a shortcut (this matters most for the emergency stop)."""
+    mods = f"{MOD}-Shift-" if shift else f"{MOD}-"
+    keys = {key.lower(), key.upper()} if key.isalpha() else {key}
+    return [f"<{mods}Key-{k}>" for k in sorted(keys)]
+
+
+def load_text_size():
+    """The text size saved last time (percent), or the normal size if there is none."""
+    try:
+        with open(SETTINGS_FILE, encoding="utf-8") as fh:
+            pct = int(json.load(fh).get("text_size", TEXT_SIZES[0]))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return TEXT_SIZES[0]
+    return pct if pct in TEXT_SIZES else TEXT_SIZES[0]
+
+
+def save_text_size(pct):
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as fh:
+            json.dump({"text_size": pct}, fh)
+    except OSError:
+        pass
 
 
 def rrect(x1, y1, x2, y2, r):
@@ -998,16 +1057,22 @@ class App(tk.Tk):
         self.tr = Tracker()
         self.bookings = []
         self.next_id = 1
+        self.text_pct, self.text_factor = TEXT_SIZES[0], 1.0    # current text size (see set_text_size)
+        self.wrap_base = {}            # label -> its wrap width at normal text size
+        self.col_base = []             # (table, {column: width at normal text size})
+        self.shortcuts = self.shortcut_table()
+        self.log_seq = 0               # counts log lines; its odd/even value keeps each row's stripe fixed
+        self.log_data = {}             # row id -> (time, level, text) for every row shown in the Log tab
         self.mode_var = tk.StringVar(value="demo")
         self.host_var = tk.StringVar(value=DEFAULT_HOST)
         self.port_var = tk.StringVar(value=str(DEFAULT_PORT))
         self.names = [s[0] for s in STOPS]
         self.sc, self.ox, self.oy = 1.0, 0.0, 0.0
         self.build_ui()
-        # ----- window size: fit the finished layout so no tab is cut off, but stay on screen -----
-        self.update_idletasks()
-        height = min(max(780, self.winfo_reqheight() + 30), self.winfo_screenheight() - 80)   # +30: menu bar room on Linux
-        self.geometry(f"1200x{height}")
+        self.bind_keys()
+        # ----- text size (as last used) and window size: fit the finished layout, but stay on screen -----
+        self.set_text_size(load_text_size(), startup=True)
+        self.btn_conn.focus_set()      # the first Tab press continues from the Connect button
         self.log_add("App started")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.after(250, self.tick)
@@ -1038,26 +1103,57 @@ class App(tk.Tk):
         self.build_status(right)
         self.nb = ttk.Notebook(right)
         self.nb.pack(fill="both", expand=True, pady=(PAD, 0))
-        self.nb.add(self.build_trip(self.nb), text="Plan trip")
-        self.nb.add(self.build_rides(self.nb), text="My rides")
-        self.nb.add(self.build_schedule(self.nb), text="Schedule")
-        self.nb.add(self.build_operator(self.nb), text="Operator")
-        self.nb.add(self.build_log(self.nb), text="Log")
+        builders = (self.build_trip, self.build_rides, self.build_schedule, self.build_operator, self.build_log)
+        for name, build in zip(TAB_NAMES, builders):
+            self.nb.add(build(self.nb), text=name)
+        self.nb.enable_traversal()     # Ctrl+Tab and Ctrl+Shift+Tab switch tabs
+        # where the keyboard focus lands when a tab is chosen with Ctrl+1 ... Ctrl+5 (never a control that acts at once)
+        self.tab_focus = [self.cb_from, self.rtree, self.nb, self.rad_ondemand, self.logtree]
+        # table column widths at normal text size, so a larger text size can scale them
+        self.col_base = [(t, {c: int(t.column(c, "width")) for c in t["columns"]})
+                         for t in (self.rtree, self.tree, self.logtree)]
 
     def build_menu(self):
-        """Menu bar: File (Exit), Demo (simulated problems) and Help."""
+        """Menu bar: File, Ride, Operator, View, Demo and Help. Every item that has a shortcut shows it."""
         bar = tk.Menu(self)
+        table = {row[0]: row for row in self.shortcuts}
+
+        def item(menu, ident, label=None):
+            _id, keys, _patterns, what, action = table[ident]
+            menu.add_command(label=label or what, accelerator=keys, command=action)
+
         m_file = tk.Menu(bar, tearoff=0)
-        m_file.add_command(label="Exit", command=self.on_close)
-        bar.add_cascade(label="File", menu=m_file)
+        item(m_file, "connect")
+        item(m_file, "export")
+        m_file.add_separator()
+        item(m_file, "quit")
+        bar.add_cascade(label="File", menu=m_file, underline=0)
+        m_ride = tk.Menu(bar, tearoff=0)
+        for ident in ("request", "para", "cancel"):
+            item(m_ride, ident)
+        bar.add_cascade(label="Ride", menu=m_ride, underline=0)
+        m_op = tk.Menu(bar, tearoff=0)
+        for ident in ("dispatch", "return", "reset"):
+            item(m_op, ident)
+        m_op.add_separator()
+        item(m_op, "estop")
+        bar.add_cascade(label="Operator", menu=m_op, underline=0)
+        m_view = tk.Menu(bar, tearoff=0)
+        for i in range(1, len(TAB_NAMES) + 1):
+            item(m_view, f"tab{i}")
+        m_view.add_separator()
+        for ident in ("bigger", "smaller", "normal"):
+            item(m_view, ident)
+        bar.add_cascade(label="View", menu=m_view, underline=0)
         m_demo = tk.Menu(bar, tearoff=0)
         for text, what in (("Simulate obstacle", "obstacle"), ("Simulate line lost", "lineloss"),
                            ("Simulate low battery", "lowbatt"), ("Simulate Wi-Fi drop (8 s)", "wifi")):
             m_demo.add_command(label=text, command=lambda w=what, t=text: self.sim(w, t))
-        bar.add_cascade(label="Demo", menu=m_demo)
+        bar.add_cascade(label="Demo", menu=m_demo, underline=0)
         m_help = tk.Menu(bar, tearoff=0)
         m_help.add_command(label="How it works", command=self.show_help)
-        bar.add_cascade(label="Help", menu=m_help)
+        item(m_help, "help")
+        bar.add_cascade(label="Help", menu=m_help, underline=0)
         self.config(menu=bar)
 
     def build_connection(self, parent):
@@ -1067,9 +1163,13 @@ class App(tk.Tk):
         ttk.Radiobutton(f, text="Demo (no jeep)", variable=self.mode_var, value="demo").grid(row=0, column=0, sticky="w")
         ttk.Radiobutton(f, text="Wi-Fi jeep", variable=self.mode_var, value="wifi").grid(row=0, column=1, sticky="w")
         ttk.Label(f, text="Host").grid(row=1, column=0, sticky="e")
-        ttk.Entry(f, textvariable=self.host_var, width=16).grid(row=1, column=1, sticky="w")
+        host = ttk.Entry(f, textvariable=self.host_var, width=16)
+        host.grid(row=1, column=1, sticky="w")
         ttk.Label(f, text="Port").grid(row=1, column=2, sticky="e")
-        ttk.Entry(f, textvariable=self.port_var, width=6).grid(row=1, column=3, sticky="w")
+        port = ttk.Entry(f, textvariable=self.port_var, width=6)
+        port.grid(row=1, column=3, sticky="w")
+        for entry in (host, port):               # Enter connects (it never disconnects by accident)
+            entry.bind("<Return>", lambda e: None if self.source else self.connect())
         self.btn_conn = ttk.Button(f, text="Connect", command=self.toggle_connection)
         self.btn_conn.grid(row=0, column=3, sticky="e", padx=(PAD, 0))
         self.v_conn = tk.StringVar(value="Not connected")
@@ -1126,11 +1226,14 @@ class App(tk.Tk):
         self.to_var = tk.StringVar(value=self.names[2])
         self.cat_var = tk.StringVar(value="Regular")
         ttk.Label(f, text="Ride on at").grid(row=0, column=0, sticky="w")
-        ttk.Combobox(f, values=self.names, textvariable=self.from_var, state="readonly", width=16).grid(row=0, column=1, sticky="w", pady=PAD_S)
-        ttk.Button(f, text="\u21c5 Swap", command=self.swap_stations).grid(row=0, column=1, rowspan=2, sticky="e", padx=(PAD, 0))
+        self.cb_from = ttk.Combobox(f, values=self.names, textvariable=self.from_var, state="readonly", width=16)
+        self.cb_from.grid(row=0, column=1, sticky="w", pady=PAD_S)
         f.columnconfigure(1, minsize=300)          # room for a combobox plus the Swap button, so the tab does not widen
         ttk.Label(f, text="Get off at").grid(row=1, column=0, sticky="w")
-        ttk.Combobox(f, values=self.names, textvariable=self.to_var, state="readonly", width=16).grid(row=1, column=1, sticky="w", pady=PAD_S)
+        self.cb_to = ttk.Combobox(f, values=self.names, textvariable=self.to_var, state="readonly", width=16)
+        self.cb_to.grid(row=1, column=1, sticky="w", pady=PAD_S)
+        # Swap is created after both boxes, so Tab visits: Ride on at, Get off at, Swap, Passenger
+        ttk.Button(f, text="\u21c5 Swap", command=self.swap_stations).grid(row=0, column=1, rowspan=2, sticky="e", padx=(PAD, 0))
         ttk.Label(f, text="Passenger").grid(row=2, column=0, sticky="w")
         ttk.Combobox(f, values=list(DISCOUNTS), textvariable=self.cat_var, state="readonly", width=16).grid(row=2, column=1, sticky="w", pady=PAD_S)
         # ----- fare and trip summary -----
@@ -1164,6 +1267,8 @@ class App(tk.Tk):
         self.rtree.bind("<<TreeviewSelect>>", lambda e: self.refresh_controls(time.time()))   # update Cancel at once
         self.btn_cancel = ttk.Button(f, text="Cancel selected ride", command=self.do_cancel)
         self.btn_cancel.pack(anchor="w", pady=PAD)
+        for key in ("<Delete>", "<BackSpace>"):          # Delete (Backspace on a Mac keyboard) cancels the selected ride
+            self.rtree.bind(key, lambda e: self.cancel_from_keyboard())
         self.rides_hint = "No rides yet. Use Plan trip > Request ride."
         self.lbl_rempty = ttk.Label(f, text=self.rides_hint, wraplength=WRAP, style="Muted.TLabel")
         self.lbl_rempty.pack(anchor="w")                  # empty-table hint: blank once there are rides
@@ -1182,7 +1287,8 @@ class App(tk.Tk):
         self.lbl_service.pack(anchor="w", pady=(PAD_S, PAD_S))
         self.v_svc = tk.StringVar()
         ttk.Label(f, textvariable=self.v_svc, wraplength=WRAP).pack(anchor="w", pady=(0, PAD))
-        self.tree = ttk.Treeview(f, columns=("stn", "next", "after"), show="headings", height=4)
+        self.tree = ttk.Treeview(f, columns=("stn", "next", "after"), show="headings", height=4,
+                                 takefocus=0)            # read-only: nothing to do in it, so Tab skips it
         for c, t, w in (("stn", "Station", 110), ("next", "Jeep passes", 100), ("after", "Following", 100)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, anchor="w")
@@ -1215,14 +1321,17 @@ class App(tk.Tk):
         mf = ttk.LabelFrame(f, text="Service mode", padding=PAD_S)
         mf.pack(fill="x")
         self.svc_var = tk.StringVar(value="ondemand")
-        ttk.Radiobutton(mf, text="On-demand", variable=self.svc_var, value="ondemand", command=self.set_mode).pack(side="left")
+        self.rad_ondemand = ttk.Radiobutton(mf, text="On-demand", variable=self.svc_var, value="ondemand", command=self.set_mode)
+        self.rad_ondemand.pack(side="left")
         ttk.Radiobutton(mf, text="Patrol (every stop)", variable=self.svc_var, value="patrol", command=self.set_mode).pack(side="left", padx=PAD_L)
         # ----- dwell time -----
         df = ttk.Frame(f)
         df.pack(fill="x", pady=(PAD_S, 0))
         ttk.Label(df, text="Dwell time (s)").pack(side="left")
         self.dwell_var = tk.StringVar(value=str(int(DWELL_S)))
-        ttk.Spinbox(df, from_=1, to=30, width=5, textvariable=self.dwell_var).pack(side="left", padx=PAD)
+        spin = ttk.Spinbox(df, from_=1, to=30, width=5, textvariable=self.dwell_var)
+        spin.pack(side="left", padx=PAD)
+        spin.bind("<Return>", lambda e: self.set_dwell())      # Enter in the box = press Set
         ttk.Button(df, text="Set", command=self.set_dwell).pack(side="left")
         # ----- live readout -----
         rf = ttk.LabelFrame(f, text="Live readout (from the jeep)", padding=PAD_S)
@@ -1235,21 +1344,30 @@ class App(tk.Tk):
         return f
 
     def build_log(self, nb):
-        """Log tab: a scrolling table of everything that happened (also saved to a file)."""
+        """Log tab: a striped table of everything that happened, colored by severity (also saved to a file)."""
         f = ttk.Frame(nb, padding=PAD)
-        self.logtree = ttk.Treeview(f, columns=("time", "event"), show="headings", height=14)
+        self.logtree = ttk.Treeview(f, columns=("time", "level", "event"), show="headings", height=14)
         self.logtree.heading("time", text="Time")
+        self.logtree.heading("level", text="Level")
         self.logtree.heading("event", text="Event")
-        self.logtree.column("time", width=70, anchor="w")
-        self.logtree.column("event", width=290, anchor="w")
+        self.logtree.column("time", width=66, anchor="w", stretch=False)
+        self.logtree.column("level", width=48, anchor="w", stretch=False)
+        self.logtree.column("event", width=246, anchor="w")
+        for level, (_label, color, even, odd) in LOG_LEVELS.items():      # one tag per severity and stripe
+            self.logtree.tag_configure(f"{level}_even", foreground=color, background=even)
+            self.logtree.tag_configure(f"{level}_odd", foreground=color, background=odd)
         sb = ttk.Scrollbar(f, orient="vertical", command=self.logtree.yview)
         self.logtree.configure(yscrollcommand=sb.set)
         self.logtree.grid(row=0, column=0, sticky="nsew")
         sb.grid(row=0, column=1, sticky="ns")
         f.rowconfigure(0, weight=1)
-        ttk.Button(f, text="Clear list", command=lambda: self.logtree.delete(*self.logtree.get_children())).grid(
-            row=1, column=0, sticky="w", pady=(PAD, 0))
-        ttk.Label(f, text="Every event is also saved to data/log.csv", style="Muted.TLabel").grid(row=2, column=0, sticky="w")
+        f.columnconfigure(0, weight=1)
+        buttons = ttk.Frame(f)
+        buttons.grid(row=1, column=0, columnspan=2, sticky="w", pady=(PAD, 0))
+        ttk.Button(buttons, text="Clear list", command=self.clear_log).pack(side="left")
+        ttk.Button(buttons, text="Export...", command=self.export_log).pack(side="left", padx=(PAD, 0))
+        ttk.Label(f, text="Every event is also saved to data/log.csv", style="Muted.TLabel").grid(
+            row=2, column=0, columnspan=2, sticky="w")
         return f
 
     # ---------- log and messages ----------
@@ -1257,18 +1375,194 @@ class App(tk.Tk):
         """Show feedback in the message bar. level: 'info', 'ok' (done), 'warn' (cannot do that) or 'error'."""
         self.bar.show(text, level)
 
-    def log_add(self, text):
+    def log_add(self, text, level="info"):
+        """Add one line to the Log tab and to data/log.csv.
+        level: 'info' (routine), 'ok' (done or recovered), 'warn' (caution) or 'danger' (needs attention)."""
+        if level not in LOG_LEVELS:
+            level = "info"
         stamp = datetime.now()
-        self.logtree.insert("", 0, values=(stamp.strftime("%H:%M:%S"), text))
+        self.log_seq += 1
+        iid = str(self.log_seq)
+        stripe = "odd" if self.log_seq % 2 else "even"     # fixed per row, so rows never change color as new ones arrive
+        self.logtree.insert("", 0, iid=iid, tags=(f"{level}_{stripe}",),
+                            values=(stamp.strftime("%H:%M:%S"), LOG_LEVELS[level][0], text))
+        self.log_data[iid] = (stamp, level, text)
         kids = self.logtree.get_children()
         if len(kids) > 500:
             self.logtree.delete(kids[-1])
+            self.log_data.pop(kids[-1], None)
         try:
             os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
             with open(LOG_FILE, "a", newline="", encoding="utf-8") as fh:
                 csv.writer(fh).writerow([stamp.isoformat(timespec="seconds"), text])
         except OSError:
             pass
+
+    def clear_log(self):
+        """Empty the Log tab (data/log.csv keeps every event)."""
+        self.logtree.delete(*self.logtree.get_children())
+        self.log_data.clear()
+
+    def export_log(self):
+        """Save the events now shown in the Log tab to a CSV file the operator picks, oldest first."""
+        rows = [self.log_data[i] for i in reversed(self.logtree.get_children()) if i in self.log_data]
+        if not rows:
+            self.show_message("Nothing to export: the log is empty.", "warn")
+            return
+        folder = os.path.dirname(LOG_FILE)
+        path = filedialog.asksaveasfilename(
+            parent=self, title="Export log", defaultextension=".csv",
+            filetypes=[("CSV file (opens in Excel)", "*.csv"), ("All files", "*.*")],
+            initialdir=folder if os.path.isdir(folder) else os.getcwd(),
+            initialfile=datetime.now().strftime("ebiyahe_log_%Y%m%d_%H%M%S.csv"))
+        if not path:                                        # the operator closed the dialog
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as fh:    # utf-8-sig: Excel shows the peso sign
+                out = csv.writer(fh)
+                out.writerow(["Timestamp", "Severity", "Event"])
+                for stamp, level, text in rows:
+                    out.writerow([stamp.isoformat(sep=" ", timespec="seconds"), LOG_LEVELS[level][0], text])
+        except OSError as err:
+            self.show_message(f"Could not save the log: {err.strerror or err}", "error")
+            return
+        self.show_message(f"Exported {len(rows)} log events to {path}", "ok")
+
+    # ---------- keyboard and text size ----------
+    def shortcut_table(self):
+        """Every keyboard shortcut as (id, keys shown to the user, Tk key patterns, what it does, function).
+        This one list drives the key bindings, the menus and the Keyboard shortcuts window."""
+        M = MOD_NAME
+        rows = [(f"tab{i}", f"{M}+{i}", chord(str(i)), f"Go to {name}", lambda i=i: self.show_tab(i - 1))
+                for i, name in enumerate(TAB_NAMES, start=1)]
+        rows += [
+            ("request", f"{M}+R", chord("r"), "Request ride",
+             lambda: self.press(self.btn_request, "Request ride", self.v_reqhint.get() or "choose two different stations")),
+            ("para", f"{M}+P", chord("p"), "Para: stop at the next station",
+             lambda: self.press(self.btn_para, "Para", "the jeep must be out on the road")),
+            ("cancel", "Delete", [], "Cancel the selected ride (in the My rides table)", self.cancel_from_keyboard),
+            ("dispatch", f"{M}+Shift+D", chord("d", True), "Dispatch",
+             lambda: self.press(self.btn_dispatch, "Dispatch", "the jeep must be parked and online")),
+            ("return", f"{M}+Shift+H", chord("h", True), "Return to depot",
+             lambda: self.press(self.btn_return, "Return to depot", "the jeep must be out on the road")),
+            ("reset", f"{M}+Shift+F", chord("f", True), "Reset fault",
+             lambda: self.press(self.btn_reset, "Reset fault", "there is no fault or emergency stop to reset")),
+            ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", lambda: self.op("estop")),
+            ("connect", f"{M}+Shift+C", chord("c", True), "Connect or disconnect", self.toggle_connection),
+            ("export", f"{M}+S", chord("s"), "Export the log...", self.export_log),
+            ("bigger", f"{M}++", [f"<{MOD}-Key-plus>", f"<{MOD}-Key-equal>", f"<{MOD}-Key-KP_Add>"],
+             "Larger text", lambda: self.step_text_size(1)),
+            ("smaller", f"{M}+-", [f"<{MOD}-Key-minus>", f"<{MOD}-Key-KP_Subtract>"],
+             "Smaller text", lambda: self.step_text_size(-1)),
+            ("normal", f"{M}+0", [f"<{MOD}-Key-0>", f"<{MOD}-Key-KP_0>"],
+             "Normal text size", lambda: self.step_text_size(0)),
+            ("help", "F1", ["<F1>"], "Keyboard shortcuts", self.show_shortcuts),
+            ("quit", f"{M}+Q", chord("q"), "Exit", self.on_close),
+        ]
+        return rows
+
+    def bind_keys(self):
+        """Turn the shortcut table into key bindings and make a few standard keys work as people expect."""
+        for _id, _keys, patterns, _what, action in self.shortcuts:
+            for pattern in patterns:
+                self.bind_all(pattern, lambda e, action=action: self.run_shortcut(action))
+        for key in ("<Return>", "<KP_Enter>"):         # Enter presses the focused button (Tk only does this for Space)
+            self.bind_class("TButton", key, self.press_focused)
+        for key, step in (("Left", -1), ("Up", -1), ("Right", 1), ("Down", 1)):   # arrow keys move inside a radio group
+            self.bind_class("TRadiobutton", f"<{key}>", lambda e, step=step: self.move_radio(e, step))
+
+    def run_shortcut(self, action):
+        action()
+        return "break"                                  # the key has been used; nothing else should react to it
+
+    def press_focused(self, event):
+        event.widget.invoke()                           # does nothing while the button is disabled
+        return "break"
+
+    def move_radio(self, event, step):
+        """Arrow keys inside a group of radio buttons: go to the next or previous one and choose it."""
+        w = event.widget
+        group = [str(c) for c in w.master.winfo_children()
+                 if c.winfo_class() == "TRadiobutton" and str(c.cget("variable")) == str(w.cget("variable"))]
+        if len(group) > 1:
+            target = self.nametowidget(group[(group.index(str(w)) + step) % len(group)])
+            target.focus_set()
+            target.invoke()
+        return "break"
+
+    def press(self, button, what, reason=""):
+        """Press a button from the keyboard, but only while the button itself is enabled (as with the mouse)."""
+        if button.instate(["disabled"]):
+            text = f"{what} is not available right now" + (f": {reason}" if reason else "")
+            self.show_message(text.rstrip(".") + ".", "warn")
+        else:
+            button.invoke()
+
+    def cancel_from_keyboard(self):
+        self.press(self.btn_cancel, "Cancel ride", "select a ride that is still waiting, with the jeep connected")
+
+    def show_tab(self, i):
+        """Switch to tab number i and put the keyboard focus on its first safe control."""
+        self.nb.select(i)
+        self.update_idletasks()
+        self.tab_focus[i].focus_set()
+
+    def show_shortcuts(self):
+        lines = [f"{keys}    {what}" for _id, keys, _patterns, what, _action in self.shortcuts]
+        lines += ["", "Tab / Shift+Tab    move between controls",
+                  "Space or Enter    press the selected button",
+                  "Arrow keys    choose a radio button, move in a table, or switch tabs (while the tab names are selected)",
+                  "Ctrl+Tab / Ctrl+Shift+Tab    next / previous tab"]
+        messagebox.showinfo("Keyboard shortcuts", "\n".join(lines))
+
+    def step_text_size(self, step):
+        """Larger text (step 1), smaller text (step -1) or back to normal (step 0)."""
+        i = 0 if step == 0 else min(max(TEXT_SIZES.index(self.text_pct) + step, 0), len(TEXT_SIZES) - 1)
+        if TEXT_SIZES[i] == self.text_pct:
+            self.show_message(f"Text is already at the {'largest' if step > 0 else 'normal'} size ({self.text_pct}%).", "info")
+        else:
+            self.set_text_size(TEXT_SIZES[i])
+
+    def set_text_size(self, pct, startup=False):
+        """Apply a text size (percent of normal) to the whole window; it is remembered for next time."""
+        self.text_pct = pct
+        self.text_factor = pct / 100.0
+        apply_text_size(self, pct)
+        self.rescale_widgets()
+        self.fit_window()
+        if not startup:
+            self.draw_static()
+            save_text_size(pct)
+            self.show_message(f"Text size {pct}%.", "info")
+
+    def all_widgets(self, parent):
+        """Every widget below `parent`, at any depth."""
+        for child in parent.winfo_children():
+            yield child
+            yield from self.all_widgets(child)
+
+    def rescale_widgets(self):
+        """Things fonts cannot do for themselves: table column widths and the wrap width of long labels."""
+        f = self.text_factor
+        for tree, widths in self.col_base:
+            for col, width in widths.items():
+                tree.column(col, width=round(width * f))
+        for w in self.all_widgets(self):
+            if w.winfo_class() == "TLabel" and w is not self.bar.label:      # the message bar wraps itself
+                base = self.wrap_base.setdefault(str(w), int(str(w.cget("wraplength")) or 0))
+                if base:
+                    w.configure(wraplength=round(base * f))
+
+    def fit_window(self):
+        """Make the window big enough for its content, never smaller than it is now and never bigger than the screen."""
+        self.update_idletasks()
+        width = min(max(1200, self.winfo_width(), self.winfo_reqwidth() + 20), self.winfo_screenwidth() - 20)
+        height = min(max(780, self.winfo_height(), self.winfo_reqheight() + 30), self.winfo_screenheight() - 80)  # +30: menu bar room on Linux
+        self.geometry(f"{width}x{height}")
+
+    def map_pt(self, size):
+        """Point size for a map label: it follows the map zoom but never drops below the readable minimum."""
+        return max(round(MAP_MIN_PT * self.text_factor), int(size))
 
     def show_help(self):
         messagebox.showinfo("How it works",
@@ -1317,7 +1611,7 @@ class App(tk.Tk):
         why = self.reject_reason(a, b, now)
         if why:
             self.show_message("Request rejected: " + why, "error")
-            self.log_add("Request rejected: " + why)
+            self.log_add("Request rejected: " + why, "warn")
             return
         legs = (b - a) % N
         cat = self.cat_var.get()
@@ -1327,7 +1621,7 @@ class App(tk.Tk):
         self.send({"cmd": "request", "id": bk.id, "from": a, "to": b})
         self.show_message(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]}, fare {CURRENCY}{bk.fare:.2f} ({cat}). "
                           "Track it in My rides.", "ok")
-        self.log_add(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]} ({cat}, {CURRENCY}{bk.fare:.2f})")
+        self.log_add(f"Ride #{bk.id} requested: {self.names[a]} > {self.names[b]} ({cat}, {CURRENCY}{bk.fare:.2f})", "ok")
 
     def do_cancel(self):
         sel = self.rtree.selection()
@@ -1400,19 +1694,19 @@ class App(tk.Tk):
             self.log_add(f"Passed {nm(m.get('stop'))} (nobody to pick up or drop off)")
         elif ev == "PARA":
             if m.get("ok", True):
-                self.log_add("Para pressed: the jeep will stop at the next station")
+                self.log_add("Para pressed: the jeep will stop at the next station", "ok")
                 self.show_message("Para accepted: the jeep will stop at the next station.", "ok")
             else:
-                self.log_add("Para ignored: the jeep is parked")
+                self.log_add("Para ignored: the jeep is parked", "warn")
                 self.show_message("Para ignored: the jeep is parked.", "warn")
         elif ev == "OBSTACLE":
-            self.log_add(f"Obstacle detected ({m.get('dist', '?')} cm): jeep stopped")
+            self.log_add(f"Obstacle detected ({m.get('dist', '?')} cm): jeep stopped", "danger")
         elif ev == "OBSTACLE_CLEAR":
-            self.log_add("Obstacle cleared: jeep moving again")
+            self.log_add("Obstacle cleared: jeep moving again", "ok")
         elif ev == "FAULT":
-            self.log_add("FAULT: line lost. Put the jeep back on the line, then press Reset")
+            self.log_add("FAULT: line lost. Put the jeep back on the line, then press Reset", "danger")
         elif ev == "ESTOP":
-            self.log_add("EMERGENCY STOP")
+            self.log_add("EMERGENCY STOP", "danger")
         elif ev == "RESET":
             self.log_add("Reset")
         elif ev == "DISPATCHED":
@@ -1420,7 +1714,7 @@ class App(tk.Tk):
         elif ev == "PARKED":
             self.log_add("Jeep parked at the depot")
         elif ev == "BATT_OK":
-            self.log_add("Battery recharged: service resumed")
+            self.log_add("Battery recharged: service resumed", "ok")
         elif ev == "MODE":
             self.log_add("Service mode: " + ("Patrol" if m.get("patrol") else "On-demand"))
         elif ev in ("LOW_BATT", "RETURNING"):
@@ -1432,7 +1726,7 @@ class App(tk.Tk):
                     b.status, b.note = "CANCELLED", why
             extra = f"{len(ids)} pending pickup(s) cancelled, " if ids else ""
             volts = f" ({m.get('batt')} V)" if ev == "LOW_BATT" else ""
-            self.log_add(f"{why.capitalize()}{volts}: {extra}returning to the depot")
+            self.log_add(f"{why.capitalize()}{volts}: {extra}returning to the depot", "warn")
             if ids:
                 self.show_message(f"Ride(s) {', '.join('#' + str(i) for i in ids)} cancelled: the jeep is returning to the depot.", "warn")
         elif ev == "REJECTED":
@@ -1440,7 +1734,7 @@ class App(tk.Tk):
             if b and b.active:
                 b.status, b.note = "REJECTED", str(m.get("reason", ""))
             self.show_message("Rejected by the jeep: " + str(m.get("reason", "")), "error")
-            self.log_add(f"Ride #{m.get('id')} rejected by the jeep: {m.get('reason', '')}")
+            self.log_add(f"Ride #{m.get('id')} rejected by the jeep: {m.get('reason', '')}", "warn")
         elif ev == "CANCELLED":
             b = self.book_by_id(m.get("id"))
             if b is None:
@@ -1467,10 +1761,10 @@ class App(tk.Tk):
                 continue
             elif b.status == "BOARDED":
                 b.status = "COMPLETED"
-                self.log_add(f"Ride #{b.id} completed at {self.names[b.drop]}")
+                self.log_add(f"Ride #{b.id} completed at {self.names[b.drop]}", "ok")
             elif now - b.sent > REQUEST_GRACE_S:                      # the jeep no longer has it
                 b.status, b.note = "CANCELLED", "dropped by the jeep"
-                self.log_add(f"Ride #{b.id} is no longer on the jeep's list: cancelled")
+                self.log_add(f"Ride #{b.id} is no longer on the jeep's list: cancelled", "warn")
 
     # ---------- connection ----------
     def toggle_connection(self):
@@ -1516,13 +1810,13 @@ class App(tk.Tk):
         self.tr.connected = up
         if up:
             self.tr.clear()
-            self.log_add("Connected to the jeep")
+            self.log_add("Connected to the jeep", "ok")
             self.show_message("Connected to the jeep.", "ok")
             self.send({"cmd": "sync", "ids": [b.id for b in self.bookings if b.active]})
             self.send({"cmd": "mode", "value": self.svc_var.get()})
             self.send({"cmd": "dwell", "value": to_float(self.dwell_var.get(), DWELL_S)})
         elif self.source:
-            self.log_add("Connection lost")
+            self.log_add("Connection lost", "warn")
             self.show_message("Connection to the jeep lost. Trying again...", "warn")
 
     def on_close(self):
@@ -1800,7 +2094,7 @@ class App(tk.Tk):
 
     def stop_radius(self):
         """Radius in pixels of a station circle at the current map zoom (big enough to hold its number)."""
-        return max(11, 13 * self.sc)
+        return max(11 * self.text_factor, 13 * self.sc)
 
     def draw_static(self):
         """Draw the parts of the map that never move: blocks, roads, depot, stations and the map key.
@@ -1833,7 +2127,7 @@ class App(tk.Tk):
         a, b = P((150, 598)), P((250, 634))
         c.create_rectangle(a[0], a[1], b[0], b[1], fill=PALETTE["map_depot_fill"], outline=PALETTE["map_depot_edge"], tags="road")
         x, y = P((142, 616))
-        c.create_text(x, y, text="Depot", anchor="e", fill=PALETTE["text"], font=(FONT_FAMILY, max(9, int(8 * s * 1.6))), tags="road")
+        c.create_text(x, y, text="Depot", anchor="e", fill=PALETTE["text"], font=(FONT_FAMILY, self.map_pt(8 * s * 1.6)), tags="road")
 
         # ----- direction arrows (white on the road, one per leg) -----
         for path in LEG_PATHS:
@@ -1846,10 +2140,10 @@ class App(tk.Tk):
         for i, (name, pos) in enumerate(STOPS):
             x, y = P(pos)
             c.create_oval(x - r, y - r, x + r, y + r, fill=PALETTE["card"], outline=PALETTE["accent"], width=3, tags="stop")
-            c.create_text(x, y, text=str(i + 1), fill=PALETTE["accent"], font=(FONT_FAMILY, max(9, int(8 * s * 1.3)), "bold"), tags="stop")
+            c.create_text(x, y, text=str(i + 1), fill=PALETTE["accent"], font=(FONT_FAMILY, self.map_pt(8 * s * 1.3), "bold"), tags="stop")
             ux, uy, anc = LABEL_POS[i]
             c.create_text(x + ux * gap, y + uy * gap, text=name, anchor=anc, fill=PALETTE["text"],
-                          font=(FONT_FAMILY, max(9, int(9 * s * 1.5)), "bold"), tags="stop")
+                          font=(FONT_FAMILY, self.map_pt(9 * s * 1.5), "bold"), tags="stop")
 
         # ----- map key and the moving layer -----
         self.draw_legend(cw, ch, s)
@@ -1860,7 +2154,7 @@ class App(tk.Tk):
         Skipped when the window is too small to leave room below the loop road."""
         items = (("Waiting for pickup", "map_pickup", None), ("Rider getting off", "map_drop", None),
                  ("Last station", "ok", None), ("Next stop", "map_next", (4, 3)), ("Planned trip", "map_route", "bar"))
-        row, width = 20, 172
+        row, width = round(20 * self.text_factor), round(172 * self.text_factor)
         height = PAD * 2 + row * (len(items) + 1) - 4
         x0, y0 = cw - width - 12, ch - height - 12
         if y0 < self.oy + 525 * s:
@@ -1908,12 +2202,12 @@ class App(tk.Tk):
         # ----- the jeep: a rounded body with two wheels, colored by its state -----
         bx, by = P(tr.position())
         col = STATE_COLOR.get(tr.state, PALETTE["muted"]) if fresh else PALETTE["disabled"]
-        bw, bh = max(22, 26 * s), max(12, 14 * s)
+        bw, bh = max(22 * self.text_factor, 26 * s), max(12 * self.text_factor, 14 * s)
         wr = max(3, 4 * s)
         for wx in (bx - bw * 0.55, bx + bw * 0.55):                                   # wheels (drawn first, body covers the top half)
             c.create_oval(wx - wr, by + bh - wr, wx + wr, by + bh + wr, fill=PALETTE["text"], outline="", tags="dyn")
         c.create_polygon(rrect(bx - bw, by - bh, bx + bw, by + bh, bh * 0.7), smooth=True, fill=col, outline=PALETTE["on_color"], width=2, tags="dyn")
-        c.create_text(bx, by, text="JEEP", fill=PALETTE["on_color"], font=(FONT_FAMILY, max(9, int(7 * s * 1.4)), "bold"), tags="dyn")
+        c.create_text(bx, by, text="JEEP", fill=PALETTE["on_color"], font=(FONT_FAMILY, self.map_pt(7 * s * 1.4), "bold"), tags="dyn")
 
         # ----- small labels next to the jeep and the depot -----
         if fresh and tr.state in ("RUNNING", "LOW_BATTERY", "OBSTACLE_HOLD", "LINE_LOST") and tr.leg_start is not None:
