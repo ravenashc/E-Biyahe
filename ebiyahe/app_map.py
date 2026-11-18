@@ -135,8 +135,8 @@ class MapMixin:
         c.create_text(bx, by, text="JEEP", fill=PALETTE["on_color"], font=(theme.FONT_FAMILY, self.map_pt(7 * s * 1.4), "bold"), tags="dyn")
 
         # ----- small labels next to the jeep and the depot -----
-        if fresh and tr.state in ("RUNNING", "LOW_BATTERY", "OBSTACLE_HOLD", "LINE_LOST") and tr.leg_start is not None:
-            c.create_text(bx, by + bh + wr + 8, text="estimated", fill=PALETTE["muted"], font=F_SMALL, tags="dyn")
+       # if fresh and tr.state in ("RUNNING", "LOW_BATTERY", "OBSTACLE_HOLD", "LINE_LOST") and tr.leg_start is not None:
+       #     c.create_text(bx, by + bh + wr + 8, text="estimated", fill=PALETTE["muted"], font=F_SMALL, tags="dyn")
         if fresh and tr.para:
             c.create_text(bx, by - bh - 10, text="PARA", fill=PALETTE["map_pickup"], font=F_SMALL_BOLD, tags="dyn")
         if fresh and tr.depot and tr.lowbatt:
