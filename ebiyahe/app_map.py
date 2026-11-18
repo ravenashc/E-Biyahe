@@ -41,10 +41,10 @@ class MapMixin:
 
         # ----- side streets (decoration only: the jeep never drives on these, so they are thin and light) -----
         for p1, p2 in (((300, 50), (300, 510)), ((50, 280), (550, 280))):
-            c.create_line(*P(p1), *P(p2), fill=PALETTE["map_street"], width=max(3, 4 * s), tags="road")
+            c.create_line(*P(p1), *P(p2), fill=PALETTE["map_street"], width=max(7, 10 * s), tags="road")
 
         # ----- main loop road: soft gray with a dashed center line -----
-        w = max(5, 8 * s)
+        w = max(12, 18 * s)
         a, b = P((50, 50)), P((550, 510))
         loop = rrect(a[0], a[1], b[0], b[1], 40 * s)
         c.create_polygon(loop, smooth=True, fill="", outline=PALETTE["map_road"], width=w, tags="road")
@@ -108,9 +108,9 @@ class MapMixin:
         if a != b:
             for k in range((b - a) % N):
                 pts = [P(p) for p in LEG_PATHS[(a + k) % N]]
-                c.create_line(*[v for p in pts for v in p], width=max(10, 13 * s), fill=PALETTE["map_route"], capstyle="round", joinstyle="round", tags=("dyn", "hl"))
+                c.create_line(*[v for p in pts for v in p], width=max(16, 25 * s), fill=PALETTE["map_route"], capstyle="round", joinstyle="round", tags=("dyn", "hl"))
             c.tag_lower("hl", "road")
-
+            
         # ----- last-station ring (green) and next-stop ring (dashed amber) -----
         fresh = self.fresh(now)
         r = self.stop_radius() + 6
