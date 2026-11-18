@@ -131,7 +131,7 @@ class RefreshMixin:
         # ----- arrival time -----
         eta = tr.eta_to_next(now)
         if eta is None:
-            self.v_eta.set("-Parked-" if tr.state == "PARKED" else "paused")
+            self.v_eta.set("-" if tr.state == "PARKED" else "paused")
             self.v_etaclock.set("")
         else:
             self.v_eta.set("arriving" if eta < 1 else fmt_dur(eta))
