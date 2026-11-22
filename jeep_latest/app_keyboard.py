@@ -29,7 +29,7 @@ class KeyboardMixin:
              lambda: self.press(self.btn_return, "Return to depot", "the jeep must be out on the road and not in an emergency stop")),
             ("reset", f"{M}+Shift+F", chord("f", True), "Reset fault",
              lambda: self.press(self.btn_reset, "Reset fault", "there is no fault or emergency stop to reset")),
-            ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", lambda: self.op("estop")),
+            ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", self.do_estop),
             ("signin", f"{M}+L", chord("l"), "Operator sign-in / sign-out", self.toggle_operator),
             ("connect", f"{M}+Shift+C", chord("c", True), "Connect or disconnect", self.toggle_connection),
             ("export", f"{M}+S", chord("s"), "Export the log...", self.export_log),
