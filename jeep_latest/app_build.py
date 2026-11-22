@@ -46,7 +46,7 @@ class BuildMixin:
         self.scroll.grid(row=0, column=1, sticky="ns")
         # ----- emergency stop: fixed under the right-hand column (outside the scrolling part), so it is always in view,
         #       next to the jeep's status and away from the routine buttons in the header. Shown to operators only. -----
-        self.estop = ttk.Button(root, text="EMERGENCY STOP", style="Danger.TButton", command=lambda: self.op("estop"))
+        self.estop = ttk.Button(root, text="EMERGENCY STOP", style="Danger.TButton", command=self.do_estop)
         self.estop.grid(row=1, column=1, sticky="ew", pady=(PAD, 0))
         self.estop.grid_remove()
         right = self.scroll.body
