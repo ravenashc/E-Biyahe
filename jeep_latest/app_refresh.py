@@ -81,6 +81,16 @@ class RefreshMixin:
     def fresh(self, now):
         return self.tr.connected and now - self.tr.last_msg <= STALE_S
 
+    def do_estop(self):
+        """EMERGENCY STOP, from the red button, the Operator menu or the keyboard.
+        When the jeep already reports an emergency stop, the press is ignored: there is nothing left to stop, so nothing
+        is sent and nothing is logged again. Without current data from the jeep the press goes to op(), which says
+        so and points to the toggle switch on the jeep."""
+        if self.fresh(time.time()) and self.tr.state == "EMERGENCY_STOP":
+            self.show_message("The jeep is already in emergency stop. Press Reset to continue.", "info")
+            return
+        self.op("estop")
+
     def state_text(self):
         tr = self.tr
         if tr.state == "LOADING_UNLOADING":
