@@ -25,17 +25,21 @@ class RefreshMixin:
         tr = self.tr
         online = self.fresh(now)
         on_road = online and not tr.depot          # the jeep is out driving, not parked in the depot
+        stopped = online and tr.state == "EMERGENCY_STOP"      # locked: nothing can move the jeep again until Reset is pressed
 
         off = self.offline_reason()
+        locked = "Emergency stop active: press Reset first."
 
         # ----- Operator: Dispatch, Return and Reset (Emergency stop is left alone) -----
+        # While the jeep is in EMERGENCY_STOP, only Reset is enabled. The keyboard shortcuts press these same buttons,
+        # so they are locked out too.
         can_dispatch = online and tr.state == "PARKED" and not tr.paused
         set_enabled(self.btn_dispatch, can_dispatch)
-        self.set_hint(self.lbl_dispatch_hint, "" if can_dispatch else off if not online else
+        self.set_hint(self.lbl_dispatch_hint, "" if can_dispatch else off if not online else locked if stopped else
                       "The jeep is already out on the road." if tr.state != "PARKED" else "Paused: low battery.")
-        can_return = on_road and not tr.paused
+        can_return = on_road and not tr.paused and not stopped
         set_enabled(self.btn_return, can_return)
-        self.set_hint(self.lbl_return_hint, "" if can_return else off if not online else
+        self.set_hint(self.lbl_return_hint, "" if can_return else off if not online else locked if stopped else
                       "The jeep is already in the depot." if tr.depot else "Already returning to the depot.")
         can_reset = online and tr.state in ("EMERGENCY_STOP", "LINE_LOST")
         set_enabled(self.btn_reset, can_reset)
