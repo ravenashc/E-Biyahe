@@ -1,0 +1,111 @@
+2026-11-19T01:06:53,App started
+2026-11-19T01:06:53,Connecting (demo)
+2026-11-19T01:06:54,Connected to the jeep
+2026-11-19T01:10:51,Operator signed in
+2026-11-19T01:12:10,EMERGENCY STOP
+2026-11-19T01:12:17,Reset
+2026-11-19T01:12:20,Jeep left the depot
+2026-11-19T01:12:40,Passed BR Station (nobody to pick up or drop off)
+2026-11-19T01:12:56,Passed TR Station (nobody to pick up or drop off)
+2026-11-19T01:13:05,Passed TL Station (nobody to pick up or drop off)
+2026-11-19T01:13:21,Passed BL Station (nobody to pick up or drop off)
+2026-11-19T01:13:30,Jeep parked at the depot
+2026-11-19T01:16:00,App started
+2026-11-19T01:16:00,Connecting (demo)
+2026-11-19T01:16:01,Connected to the jeep
+2026-11-19T01:16:33,"Ride #1 requested: BL Station > TL Station (Regular, ₱25.00)"
+2026-11-19T01:16:34,Jeep left the depot
+2026-11-19T01:16:53,Passed BR Station (nobody to pick up or drop off)
+2026-11-19T01:17:09,Passed TR Station (nobody to pick up or drop off)
+2026-11-19T01:17:18,Passed TL Station (nobody to pick up or drop off)
+2026-11-19T01:17:35,Arrived at BL Station: LOADING
+2026-11-19T01:17:35,Ride #1 boarded at BL Station
+2026-11-19T01:17:39,Left BL Station
+2026-11-19T01:18:03,Passed BR Station (nobody to pick up or drop off)
+2026-11-19T01:18:19,Passed TR Station (nobody to pick up or drop off)
+2026-11-19T01:18:27,Arrived at TL Station: UNLOADING
+2026-11-19T01:18:27,Ride #1 completed at TL Station
+2026-11-19T01:18:32,Left TL Station
+2026-11-19T01:18:47,Passed BL Station (nobody to pick up or drop off)
+2026-11-19T01:18:56,Jeep parked at the depot
+2026-11-19T01:22:27,Operator signed out (no activity)
+2026-11-19T01:23:10,Disconnected
+2026-11-19T01:32:58,Disconnected
+2026-11-19T01:33:04,App started
+2026-11-19T01:33:04,Connecting (demo)
+2026-11-19T01:33:04,Connected to the jeep
+2026-11-19T01:35:14,"Ride #1 requested: BR Station > TL Station (Regular, ₱20.00)"
+2026-11-19T01:35:14,Jeep left the depot
+2026-11-19T01:35:18,Para pressed: the jeep will stop at the next station
+2026-11-19T01:35:33,Arrived at BR Station: LOADING / UNLOADING
+2026-11-19T01:35:33,Ride #1 boarded at BR Station
+2026-11-19T01:35:37,Left BR Station
+2026-11-19T01:35:53,Passed TR Station (nobody to pick up or drop off)
+2026-11-19T01:36:01,Arrived at TL Station: UNLOADING
+2026-11-19T01:36:01,Ride #1 completed at TL Station
+2026-11-19T01:36:05,Left TL Station
+2026-11-19T01:36:22,Passed BL Station (nobody to pick up or drop off)
+2026-11-19T01:36:31,Jeep parked at the depot
+2026-11-19T01:37:28,App started
+2026-11-19T01:37:28,Connecting (demo)
+2026-11-19T01:37:28,Connected to the jeep
+2026-11-19T01:37:45,Disconnected
+2026-11-19T01:40:42,App started
+2026-11-19T01:40:42,Connecting (demo)
+2026-11-19T01:40:42,Connected to the jeep
+2026-11-19T01:40:56,Operator signed in
+2026-11-19T01:40:58,Operator signed out
+2026-11-19T01:41:02,Operator signed in
+2026-11-19T01:41:05,EMERGENCY STOP
+2026-11-19T01:41:06,Operator signed out
+2026-11-19T01:41:12,Operator signed in
+2026-11-19T01:41:30,EMERGENCY STOP
+2026-11-19T01:41:32,EMERGENCY STOP
+2026-11-19T01:41:32,EMERGENCY STOP
+2026-11-19T01:41:33,Operator signed out
+2026-11-19T01:43:44,App started
+2026-11-19T01:43:44,Connecting (demo)
+2026-11-19T01:43:44,Connected to the jeep
+2026-11-19T01:44:03,Disconnected
+2026-11-19T01:44:05,Disconnected
+2026-11-19T01:44:07,Disconnected
+2026-11-19T01:44:14,App started
+2026-11-19T01:44:14,Connecting (demo)
+2026-11-19T01:44:14,Connected to the jeep
+2026-11-19T01:44:23,"Ride #1 requested: BR Station > BL Station (Regular, ₱25.00)"
+2026-11-19T01:44:23,Jeep left the depot
+2026-11-19T01:44:43,Arrived at BR Station: LOADING
+2026-11-19T01:44:43,Ride #1 boarded at BR Station
+2026-11-19T01:44:47,Left BR Station
+2026-11-19T01:45:04,Passed TR Station (nobody to pick up or drop off)
+2026-11-19T01:45:08,Disconnected
+2026-11-19T01:45:18,App started
+2026-11-19T01:45:18,Connecting (demo)
+2026-11-19T01:45:19,Connected to the jeep
+2026-11-19T01:46:32,App started
+2026-11-19T01:46:32,Connecting (demo)
+2026-11-19T01:46:33,Connected to the jeep
+2026-11-20T17:28:23,App started
+2026-11-20T17:28:23,Connecting (demo)
+2026-11-20T17:28:23,Connected to the jeep
+2026-11-20T17:28:30,Operator signed in
+2026-11-20T17:28:35,Operator signed out
+2026-11-20T17:54:21,App started
+2026-11-20T17:54:21,Connecting (demo)
+2026-11-20T17:54:21,Connected to the jeep
+2026-11-20T17:54:38,Operator signed in
+2026-11-20T17:54:47,Operator signed out
+2026-11-22T13:18:07,App started
+2026-11-22T13:18:07,Connecting (demo)
+2026-11-22T13:18:07,Connected to the jeep
+2026-11-22T13:18:07,Jeep left the depot
+2026-11-22T13:18:27,Arrived at BR Station
+2026-11-22T13:18:28,Disconnected
+2026-11-22T15:32:02,App started
+2026-11-22T15:32:02,Connecting (demo)
+2026-11-22T15:32:03,Connected to the jeep
+2026-11-22T15:32:03,Jeep left the depot
+2026-11-22T15:32:23,Arrived at BR Station
+2026-11-22T15:32:27,Left BR Station
+2026-11-22T15:32:31,Arrived at TR Station
+2026-11-22T15:32:33,Disconnected
