@@ -66,8 +66,9 @@ class JeepSim:
     def command(self, c):
         cmd = c.get("cmd")
         if cmd == "estop":
-            self.E = True
-            self.event("ESTOP")
+            if not self.E:                   # already latched: a second press changes nothing and is not reported again
+                self.E = True
+                self.event("ESTOP")
         elif cmd == "reset":
             self.E = self.F = False
             self.R = True
