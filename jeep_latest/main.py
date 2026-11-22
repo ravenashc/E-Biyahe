@@ -3,6 +3,7 @@
 #clean up code
 #packs
 #adjust fare, seconds, schedule (4:00 am to 10:00 pm)
+#imitate others' modules
 
 #!/usr/bin/env python3
 """
