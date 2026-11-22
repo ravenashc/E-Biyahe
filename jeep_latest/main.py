@@ -5,6 +5,9 @@
 #adjust fare, seconds, schedule (4:00 am to 10:00 pm)
 #imitate others' modules
 #disable emergency stop button after clicking it, need to press reset first
+#regular fare to 17
+#schedule 4am to 10pm
+#emergency button locks after pressing, need to press reset to disable.
 
 #!/usr/bin/env python3
 """
