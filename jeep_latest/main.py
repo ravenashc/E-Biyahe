@@ -4,7 +4,7 @@
 #packs
 #adjust fare, seconds, schedule (4:00 am to 10:00 pm)
 #imitate others' modules
-
+#disable emergency stop button after clicking it, need to press reset first
 #!/usr/bin/env python3
 """
 E-BIYAHE - Tkinter jeep tracker for the automated guided e-jeepney diorama.
