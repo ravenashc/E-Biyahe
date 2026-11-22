@@ -26,7 +26,7 @@ class KeyboardMixin:
             ("dispatch", f"{M}+Shift+D", chord("d", True), "Dispatch",
              lambda: self.press(self.btn_dispatch, "Dispatch", "the jeep must be parked and online")),
             ("return", f"{M}+Shift+H", chord("h", True), "Return to depot",
-             lambda: self.press(self.btn_return, "Return to depot", "the jeep must be out on the road")),
+             lambda: self.press(self.btn_return, "Return to depot", "the jeep must be out on the road and not in an emergency stop")),
             ("reset", f"{M}+Shift+F", chord("f", True), "Reset fault",
              lambda: self.press(self.btn_reset, "Reset fault", "there is no fault or emergency stop to reset")),
             ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", lambda: self.op("estop")),
