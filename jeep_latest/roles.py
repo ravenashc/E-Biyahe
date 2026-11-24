@@ -14,7 +14,7 @@ OPERATOR_ONLY = {
     "tabs": ("Operator", "Log"),
     "menus": ("Operator", "Demo"),
     "panels": ("connection", "estop"),
-    "shortcuts": ("connect", "export", "dispatch", "return", "reset", "estop"),
+    "shortcuts": ("connect", "export", "dispatch", "reset", "estop"),
 }
 
 # The operator controls the vehicle but does not choose a passenger boarding/alighting route.
