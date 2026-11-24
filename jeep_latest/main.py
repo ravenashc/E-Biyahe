@@ -19,8 +19,8 @@ HOW THE SERVICE WORKS (patrol)
   The jeep drives a one-way loop, counterclockwise (THIRSTOP > E.S.P. CORP. > PARKSILICA > LILIM), and stops at EVERY station for the
   dwell time. Nobody books or requests anything: the app shows passengers where the jeep is, when it reaches
   each station, and what a trip between two stations costs and how long it takes (estimates).
-  The jeep parks at the terminal only when the battery is low or an operator sends it back.
-  The app only shows what the jeep reports (operators can also dispatch, return, reset and emergency-stop it).
+  The jeep remains parked at the terminal until an operator presses Dispatch.
+  Operators can dispatch, reset supported faults and trigger emergency stop. Low-battery safety behavior remains automatic.
 
 MODES
   Demo  - a built-in simulated jeep that follows the same rules (class JeepSim). The Demo menu
@@ -29,7 +29,7 @@ MODES
 
 MESSAGES (one JSON object per line)
   App -> jeep
-    {"cmd":"estop"}  {"cmd":"reset"}  {"cmd":"dispatch"}  {"cmd":"return"}
+    {"cmd":"estop"}  {"cmd":"reset"}  {"cmd":"dispatch"}
     {"cmd":"mode","value":"patrol"}      {"cmd":"dwell","value":4}
     (the app sends mode=patrol and the dwell time on every (re)connect)
   Jeep -> app: STATUS every 1 s and on every change
@@ -38,12 +38,11 @@ MESSAGES (one JSON object per line)
     state = PARKED | RUNNING | LOADING_UNLOADING | OBSTACLE_HOLD | LINE_LOST | EMERGENCY_STOP | LOW_BATTERY
     next  = index of the next station tag the jeep will read; the last station is (next - 1) mod 4.
             While parked, next is 0 (the jeep leaves the terminal toward BR).
-    paused = the jeep is not doing its rounds (low battery, or returning to the terminal)
-    LOW_BATTERY is also used for a terminal return ordered by the operator.
+    paused = the jeep is not doing its rounds because a low-battery safety condition is active
   Jeep -> app: EVENT (for the log and alerts)
     {"type":"event","ev":"ARRIVED","stop":2}
     ev = ARRIVED DEPARTED TAG_PASS OBSTACLE OBSTACLE_CLEAR FAULT ESTOP RESET DISPATCHED PARKED
-         LOW_BATT RETURNING BATT_OK
+         LOW_BATT BATT_OK
 
 KEYBOARD AND TEXT SIZE
   Everything can be done without a mouse. Press F1 (or open the menus) to see every shortcut:
@@ -74,7 +73,7 @@ Edit config.py to match your diorama, fares and hours.
 #   app_build.py     builds the screens: menu bar, connection box, status card and tabs
 #   app_feedback.py  message bar, log list and log export
 #   app_keyboard.py  keyboard shortcuts, text size, window size and the help window
-#   app_commands.py  what the buttons do: dispatch, return, reset, emergency stop, dwell
+#   app_commands.py  what the buttons do: dispatch, reset, emergency stop, dwell
 #   app_link.py      the connection to the jeep and the messages that come back
 #   app_refresh.py   the update that runs four times a second
 #   app_map.py       drawing the map

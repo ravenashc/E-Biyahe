@@ -24,23 +24,18 @@ class RefreshMixin:
         The emergency stop is never disabled."""
         tr = self.tr
         online = self.fresh(now)
-        on_road = online and not tr.depot          # the jeep is out driving, not parked at the terminal
         stopped = online and tr.state == "EMERGENCY_STOP"      # locked: nothing can move the jeep again until Reset is pressed
 
         off = self.offline_reason()
         locked = "Emergency stop active: press Reset first."
 
-        # ----- Operator: Dispatch, Return and Reset (Emergency stop is left alone) -----
+        # ----- Operator: Dispatch and Reset (Emergency stop is left alone) -----
         # While the jeep is in EMERGENCY_STOP, only Reset is enabled. The keyboard shortcuts press these same buttons,
         # so they are locked out too.
         can_dispatch = online and tr.state == "PARKED" and not tr.paused
         set_enabled(self.btn_dispatch, can_dispatch)
         self.set_hint(self.lbl_dispatch_hint, "" if can_dispatch else off if not online else locked if stopped else
                       "The jeep is already out on the road." if tr.state != "PARKED" else "Paused: low battery.")
-        can_return = on_road and not tr.paused and not stopped
-        set_enabled(self.btn_return, can_return)
-        self.set_hint(self.lbl_return_hint, "" if can_return else off if not online else locked if stopped else
-                      "The jeep is already at the terminal." if tr.depot else "Already returning to the terminal.")
         can_reset = online and tr.state in ("EMERGENCY_STOP", "LINE_LOST")
         set_enabled(self.btn_reset, can_reset)
         self.set_hint(self.lbl_reset_hint, "" if can_reset else off if not online else "No fault or emergency stop to reset.")
@@ -116,7 +111,6 @@ class RefreshMixin:
         if not self.fresh(now):
             self.badge.set("Offline", PALETTE["muted"])
             self.v_next.set("-")
-            self.v_eta.set("-")
             if self.role == PASSENGER:
                 self.show_alert("The service is unavailable right now. Please try again in a moment.", "warn")
             else:
@@ -127,13 +121,6 @@ class RefreshMixin:
         self.badge.set(self.state_text(), STATE_COLOR.get(tr.state, PALETTE["muted"]))
         self.v_next.set("-" if tr.state == "PARKED" else self.short_names[tr.next_stop])
 
-        # ----- arrival time -----
-        eta = tr.eta_to_next(now)
-        if eta is None:
-            self.v_eta.set("-" if tr.state == "PARKED" else "paused")
-        else:
-            self.v_eta.set("arriving" if eta < 1 else fmt_dur(eta))
-
         # ----- alert line: red for danger, amber for caution -----
         if tr.state == "EMERGENCY_STOP":
             self.show_alert("EMERGENCY STOP. Press Reset (Operator tab) to continue.", "danger")
@@ -142,7 +129,7 @@ class RefreshMixin:
         elif tr.state == "OBSTACLE_HOLD":
             self.show_alert("Obstacle ahead: waiting for it to clear.", "warn")
         elif tr.paused:
-            self.show_alert("LOW BATTERY: returning to the terminal." if tr.lowbatt else "The jeep is returning to the terminal.", "warn")
+            self.show_alert("LOW BATTERY: automatic safety behavior active.", "warn")
         else:
             self.show_alert("")
 

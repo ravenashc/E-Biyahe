@@ -90,7 +90,7 @@ class BuildMixin:
         bar.add_cascade(label="File", menu=m_file, underline=0)
         if allowed(role, "menus", "Operator"):
             m_op = tk.Menu(bar, tearoff=0)
-            for ident in ("dispatch", "return", "reset"):
+            for ident in ("dispatch", "reset"):
                 item(m_op, ident)
             m_op.add_separator()
             item(m_op, "estop")
@@ -136,7 +136,7 @@ class BuildMixin:
         card.columnconfigure(1, weight=1)
 
         # ----- values shown in this card (changing one updates the screen) -----
-        self.v_next, self.v_eta = tk.StringVar(), tk.StringVar()
+        self.v_next = tk.StringVar()
         self.v_alert = tk.StringVar()
 
         # ----- top line: the live state (colored dot and word), then a thin rule -----
@@ -144,14 +144,10 @@ class BuildMixin:
         self.badge.grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Separator(card).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(PAD_S, PAD_S))
 
-        # ----- two tiles side by side: where the jeep is going (left) and when it gets there (right) -----
-        #       each tile is a small label and a large value; the column widths are kept fixed
+        # ----- next-stop information (live ETA intentionally omitted) -----
         ttk.Label(card, style="CardMuted.TLabel", text="Next stop").grid(row=2, column=0, sticky="w")
         ttk.Label(card, textvariable=self.v_next, style="CardDisplay.TLabel").grid(row=3, column=0, sticky="w")
-        ttk.Label(card, style="CardMuted.TLabel", text="Arrives in").grid(row=2, column=1, sticky="w", padx=(PAD_L, 0))
-        ttk.Label(card, textvariable=self.v_eta, style="CardTitle.TLabel").grid(row=3, column=1, sticky="w", padx=(PAD_L, 0))
         self.reserve_width(card, 0, F_DISPLAY, self.short_names)
-        self.reserve_width(card, 1, F_TITLE, ["10 min 59 s"], extra=PAD_L)
 
         # ----- alert line: its two lines of room are always kept, so an alert appearing never pushes the tabs down -----
         self.lbl_alert = ttk.Label(card, textvariable=self.v_alert, style="Alert.TLabel", wraplength=WRAP)
@@ -227,7 +223,6 @@ class BuildMixin:
         bar.pack(fill="x")
         # each button sits in its own column with the reason it is off right under it (shown only then)
         specs = (("btn_dispatch", "lbl_dispatch_hint", "Dispatch", "Primary.TButton", self.do_dispatch),
-                 ("btn_return", "lbl_return_hint", "To terminal", "TButton", lambda: self.op("return")),
                  ("btn_reset", "lbl_reset_hint", "Reset", "TButton", lambda: self.op("reset")))
         for col, (btn_name, hint_name, text, style, command) in enumerate(specs):
             pad = (0 if col == 0 else PAD, 0)
@@ -237,7 +232,7 @@ class BuildMixin:
             hint.grid(row=1, column=col, sticky="nw", padx=pad, pady=(PAD_S, 0))
             setattr(self, btn_name, button)
             setattr(self, hint_name, hint)
-        self.reserve(bar, 1, F_SMALL, 3)                   # room for the reasons under the buttons is always kept (see set_hint)
+        self.reserve(bar, 1, F_SMALL, 2)                   # room for the reasons under the buttons is always kept (see set_hint)
 
         # ----- emergency stop: it lives under the right-hand column (visible from every tab and never disabled), so only a reminder here -----
         ttk.Label(f, text="EMERGENCY STOP is the red button at the bottom of this column.", style="Muted.TLabel",
@@ -263,7 +258,7 @@ class BuildMixin:
         self.live_card = rc                      # the connection card is packed just above this one (see apply_role)
         rf = rc.body
         self.ov = {k: tk.StringVar(value="-") for k in ("state", "batt", "sensors")}
-        for r, (k, t) in enumerate((("state", "State"), ("batt", "Battery"), ("sensors", "Sensors"))):
+        for r, (k, t) in enumerate((("state", "State"), ("sensors", "Sensors"))):
             ttk.Label(rf, text=t, style="CardMuted.TLabel").grid(row=r, column=0, sticky="nw", pady=2)
             ttk.Label(rf, textvariable=self.ov[k], style="Card.TLabel", wraplength=WRAP - 110).grid(
                 row=r, column=1, sticky="w", padx=PAD, pady=2)

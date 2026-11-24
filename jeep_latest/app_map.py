@@ -10,8 +10,8 @@ import theme
 from helpers import fmt_dur, point_at, rrect
 from jeepney import draw_jeepney
 from map_data import (
-    BLOCKS, CHARGING_POS, CROSSWALK_OFFSET, DEPOT_BOX, DEPOT_LABEL, DEPOT_ROAD, INTERSECTION_BOX, INTERSECTION_CENTER,
-    LABEL_POS, LANDMARKS, LEG_PATHS, LOOP, N, SIDE_STREETS, STATE_COLOR, ROAD_W, STOPS, STREET_W, WORLD_H, WORLD_W,
+    BLOCKS, BLOCK_STATION, CHARGING_POS, CROSSWALK_OFFSET, DEPOT_BOX, DEPOT_LABEL, DEPOT_ROAD, INTERSECTION_BOX, INTERSECTION_CENTER,
+    LANDMARKS, LEG_PATHS, LOOP, N, SIDE_STREETS, STATE_COLOR, ROAD_W, STOP_NUMBERS, STOPS, STREET_W, WORLD_H, WORLD_W,
 )
 from theme import F_SMALL, F_SMALL_BOLD, PAD, PALETTE
 
@@ -47,10 +47,9 @@ class MapMixin:
             a, b = P((x1, y1)), P((x2, y2))
             c.create_polygon(rrect(a[0], a[1], b[0], b[1], 14 * s), smooth=True, fill=PALETTE["map_block"], outline=PALETTE["map_block_edge"], tags="block")
 
-        # ----- landmarks: a small drawing and a name in each block -----
-        for (x1, y1, x2, y2), (kind, name) in zip(BLOCKS, LANDMARKS):
-            display_name = "Parking Station" if kind == "market" else name
-            self.draw_landmark(kind, display_name, (x1 + x2) / 2, (y1 + y2) / 2, (y2 - y1) / 2)
+        # ----- landmarks: a small drawing in each block, with the name of the station it belongs to below it -----
+        for (x1, y1, x2, y2), (kind, _name), stop in zip(BLOCKS, LANDMARKS, BLOCK_STATION):
+            self.draw_landmark(kind, STOPS[stop][0], (x1 + x2) / 2, (y1 + y2) / 2, (y2 - y1) / 2)
 
         # ----- connecting asphalt streets: visual crossroad only; the jeep route remains on the outer loop -----
         street_w = max(16, STREET_W * s)
@@ -82,17 +81,12 @@ class MapMixin:
             p1, p2 = point_at(path, 0.47), point_at(path, 0.53)
             c.create_line(*P(p1), *P(p2), arrow=tk.LAST, arrowshape=(14, 16, 7), fill=PALETTE["on_color"], width=3, tags=("road", "arrow"))
 
-        # ----- stations: a numbered circle with the name beside it -----
+        # ----- stations: a numbered circle (the name is written in the block, under its landmark) -----
         r = self.stop_radius()
-        gap = r + 24                                   # distance from the circle to its name (clears the pickup/drop-off ring, radius + 18)
-        for i, (name, pos) in enumerate(STOPS):
+        for i, (_name, pos) in enumerate(STOPS):
             x, y = P(pos)
             c.create_oval(x - r, y - r, x + r, y + r, fill=PALETTE["card"], outline=PALETTE["accent"], width=3, tags="stop")
-            c.create_text(x, y, text=str(i + 1), fill=PALETTE["accent"], font=(theme.FONT_FAMILY, self.map_pt(8 * s * 1.3), "bold"), tags="stop")
-            ux, uy, anc = LABEL_POS[i]
-            map_name = name.replace(" Station", "\nStation")
-            c.create_text(x + ux * gap, y + uy * gap, text=map_name, anchor=anc, fill=PALETTE["text"],
-                          font=(theme.FONT_FAMILY, self.map_pt(8 * s * 1.45), "bold"), tags="stop")
+            c.create_text(x, y, text=str(STOP_NUMBERS[i]), fill=PALETTE["accent"], font=(theme.FONT_FAMILY, self.map_pt(8 * s * 1.3), "bold"), tags="stop")
 
         # ----- map key and the moving layer -----
         self.draw_legend(cw, ch, s)
@@ -171,20 +165,17 @@ class MapMixin:
                               fill=color, outline="", tags=("intersection", "signal"))
 
     def draw_landmark(self, kind, name, cx, cy, half_h):
-        """A small drawing (market, construction site, school or park) with its name below it, in the middle of a block (the station
-        names sit at the block's far edge). (cx, cy) is the block's centre and half_h its half height, both in map points.
+        """A small drawing (market, construction site, school or park) with the name of its station below it, in the middle of a block.
+        (cx, cy) is the block's centre and half_h its half height, both in map points.
         A small map gets a smaller drawing, and no name when space is short."""
         c, s = self.cv, self.sc
-        if kind == "hall":
-            name = "Construction Site"
         x, y = self.w2c((cx, cy))
-        ground = y + 0.55 * half_h * s                 # the bottom of the drawing and its name
-        avail = half_h * s + 0.55 * half_h * s - 8     # pixels from that line up to the top edge of the block (8 px margin)
-        name_h = 14 if (avail - 14) / 2.6 >= 7 else 0  # show the name only when the drawing can still be at least a decent size
-        k = max(5.0, min(30 * s, (avail - name_h - 2) / 2.6))      # one drawing unit in pixels
-        if name_h:
-            c.create_text(x, ground - name_h / 2, text=name, fill=PALETTE["muted"], font=F_SMALL, tags="landmark")
-            ground -= name_h
+        name_h = 20 * self.text_factor                 # room for the station name under the drawing
+        ground = min(y + 0.55 * half_h * s, y + half_h * s - name_h - 4)    # the bottom of the drawing; its name goes below it
+        avail = ground - (y - half_h * s) - 8          # pixels from that line up to the top edge of the block (8 px margin)
+        k = max(5.0, min(30 * s, (avail - 2) / 2.6))   # one drawing unit in pixels
+        c.create_text(x, ground + 6, text=name, anchor="n", fill=PALETTE["text"],
+                      font=(theme.FONT_FAMILY, self.map_pt(8 * s * 1.45), "bold"), tags="landmark")
         wall, roof, line, glass = PALETTE["map_lm_wall"], PALETTE["map_lm_roof"], PALETTE["map_lm_line"], PALETTE["map_lm_glass"]
 
         def rect(x1, y1, x2, y2, fill):                # coordinates are in units of k from the ground line, y up is negative
@@ -298,13 +289,98 @@ class MapMixin:
                 park_line(bx - 0.018, -0.50, bx - 0.018, -0.57, park_silver, 0.012)
 
         elif kind == "school":
-            rect(-1.3, -1.1, 1.3, 0, wall)
-            rect(-1.4, -1.3, 1.4, -1.1, roof)          # flat roof
-            rect(-1.1, -0.9, -0.6, -0.45, glass)       # windows
-            rect(0.6, -0.9, 1.1, -0.45, glass)
-            rect(-0.25, -0.7, 0.25, 0, roof)           # door
-            seg(1.0, -1.3, 1.0, -2.5)                  # flagpole and flag
-            poly([(1.0, -2.5), (1.7, -2.25), (1.0, -2.0)], roof)
+            # LILIM station, front elevation based on the user's physical model:
+            # a tall office block with a blue louvered roof and a row of eight blue windows,
+            # a white segmented canopy on black posts, a peach/grey side block, three round
+            # trees, two dark gate pillars with a swing gate, and a picket fence round a lawn.
+            # Decorative only; it does not affect routing.
+            lawn = "#3FAE49"
+            lawn_edge = "#2C7F36"
+            peach = "#F2BC93"
+            peach_edge = "#B8845F"
+            tan = "#C4B38D"
+            grey = "#B1B5B7"
+            grey_edge = "#6F777B"
+            navy = "#1B3F78"
+            win = "#1D5C8D"
+            louver = "#1D82B2"
+            canopy = "#E4F0F3"
+            canopy_edge = "#7A8E96"
+            post = "#161B20"
+            pillar = "#4B4F53"
+            tree = "#3E9F42"
+            tree_edge = "#2B6E33"
+            fence = "#5A6068"
+
+            def lm_rect(x1, y1, x2, y2, fill, outline=line, weight=0.03):
+                c.create_rectangle(x + x1 * k, ground + y1 * k, x + x2 * k, ground + y2 * k,
+                                   fill=fill, outline=outline, width=max(1.0, weight * k), tags="landmark")
+
+            def lm_poly(points, fill, outline=line, weight=0.03):
+                coords = [v for px, py in points for v in (x + px * k, ground + py * k)]
+                c.create_polygon(coords, fill=fill, outline=outline, width=max(1.0, weight * k),
+                                 joinstyle=tk.ROUND, tags="landmark")
+
+            def lm_line(x1, y1, x2, y2, color, weight=0.03):
+                c.create_line(x + x1 * k, ground + y1 * k, x + x2 * k, ground + y2 * k,
+                              fill=color, width=max(1.0, weight * k), capstyle=tk.ROUND, tags="landmark")
+
+            def lm_oval(x1, y1, x2, y2, fill, outline=tree_edge, weight=0.03):
+                c.create_oval(x + x1 * k, ground + y1 * k, x + x2 * k, ground + y2 * k,
+                              fill=fill, outline=outline, width=max(1.0, weight * k), tags="landmark")
+
+            # Green lawn the whole station stands on.
+            lm_rect(-2.45, -2.75, 2.45, -0.02, lawn, lawn_edge, 0.04)
+
+            # Main office block (left, behind the canopy): blue louvered roof, tan band, 8 windows.
+            lm_rect(-2.05, -2.70, 0.45, -2.15, peach, peach_edge, 0.03)
+            lm_rect(-1.95, -2.64, 0.35, -2.21, navy, navy, 0.02)
+            for i in range(6):
+                ly = -2.60 + i * 0.07
+                lm_line(-1.92, ly, 0.32, ly, louver, 0.04)
+            lm_line(-0.80, -2.64, -0.80, -2.21, navy, 0.05)
+            lm_rect(-2.05, -2.15, 0.45, -1.80, tan, peach_edge, 0.03)
+            for i in range(8):
+                wx = -1.98 + i * 0.30
+                lm_rect(wx, -1.80, wx + 0.22, -1.22, win, navy, 0.02)
+
+            # Second block (right): peach top, grey lower face.
+            lm_rect(0.72, -2.70, 1.72, -1.70, peach, peach_edge, 0.03)
+            lm_rect(0.72, -1.70, 1.72, -0.45, grey, grey_edge, 0.03)
+            lm_rect(0.72, -1.74, 1.72, -1.66, peach_edge, peach_edge, 0.01)
+            lm_oval(0.64, -1.48, 0.78, -1.34, "#D94B40", "#8E2B25", 0.02)    # red lamp on its edge
+
+            # White segmented canopy on black posts, in front of the office block.
+            for px in (-2.00, 0.38):
+                lm_rect(px, -1.35, px + 0.06, -0.55, post, post, 0.01)
+            lm_rect(-2.05, -1.55, 0.45, -0.85, canopy, canopy_edge, 0.03)
+            for i in range(1, 4):
+                ly = -1.55 + i * 0.175
+                lm_line(-2.05, ly, 0.45, ly, canopy_edge, 0.02)
+            lm_rect(-2.05, -1.55, 0.45, -1.46, "#F6F8F8", canopy_edge, 0.02)
+
+            # Three round trees stacked down the left edge.
+            for ty in (-1.72, -1.28, -0.84):
+                lm_oval(-2.40, ty - 0.24, -1.92, ty + 0.24, tree, tree_edge, 0.03)
+                lm_oval(-2.30, ty - 0.16, -2.08, ty - 0.02, "#63BE5A", "#63BE5A", 0.01)
+
+            # Gate: two dark pillars, a grey kiosk panel and an angled swing gate between them.
+            lm_rect(-1.55, -0.62, -1.30, -0.08, pillar, post, 0.03)
+            lm_rect(-1.30, -0.50, -0.80, -0.14, "#AEB2B4", grey_edge, 0.02)
+            lm_poly([(-0.55, -0.55), (-0.18, -0.42), (-0.18, -0.12), (-0.55, -0.25)], "#9AA0A3", grey_edge, 0.02)
+            lm_rect(-0.10, -0.62, 0.15, -0.08, pillar, post, 0.03)
+            # Small yellow lamps along the driveway.
+            for ly in (-1.00, -0.78, -0.56):
+                lm_oval(0.30, ly - 0.035, 0.38, ly + 0.035, "#F3C94C", "#A27B29", 0.015)
+
+            # Picket fence along the front and both sides of the lawn.
+            for fx in [-2.40 + i * 0.12 for i in range(41)]:
+                lm_line(fx, -0.17, fx, -0.02, fence, 0.03)
+            lm_line(-2.42, -0.14, 2.42, -0.14, fence, 0.025)
+            for fy in [-2.72 + i * 0.13 for i in range(21)]:
+                lm_line(-2.44, fy, -2.36, fy, fence, 0.03)
+                lm_line(2.36, fy, 2.44, fy, fence, 0.03)
+
         elif kind == "market":
             # Front-elevation parking station based on the user's physical model.
             # The attached multi-storey building is on the LEFT; the open two-level
@@ -705,8 +781,7 @@ class MapMixin:
             self.draw_dynamic(time.time())
 
     def draw_hover(self, now, fresh):
-        """Ring and tooltip for what the mouse is over. A station shows its name and when the jeep arrives;
-        the jeep shows its state and next stop."""
+        """Ring and tooltip for the hovered station or jeep; live ETA is not displayed."""
         if self.hover_item is None:
             return
         kind, i = self.hover_item
@@ -716,9 +791,6 @@ class MapMixin:
             r = self.stop_radius()
             c.create_oval(x - r - 3, y - r - 3, x + r + 3, y + r + 3, outline=PALETTE["accent"], width=2, tags="dyn")
             lines = [STOPS[i][0]]
-            eta = tr.eta_to_stop(i, now) if fresh else None
-            if eta is not None:
-                lines.append("Jeep is here now" if eta == 0 else "Jeep arrives in " + fmt_dur(eta))
             self.draw_tooltip(x, y, r + 3, lines)
         else:
             bx, by = self.w2c(tr.position())

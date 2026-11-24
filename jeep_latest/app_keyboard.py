@@ -25,8 +25,6 @@ class KeyboardMixin:
         rows += [
             ("dispatch", f"{M}+Shift+D", chord("d", True), "Dispatch",
              lambda: self.press(self.btn_dispatch, "Dispatch", "the jeep must be parked and online")),
-            ("return", f"{M}+Shift+H", chord("h", True), "Return to terminal",
-             lambda: self.press(self.btn_return, "Return to terminal", "the jeep must be out on the road and not in an emergency stop")),
             ("reset", f"{M}+Shift+F", chord("f", True), "Reset fault",
              lambda: self.press(self.btn_reset, "Reset fault", "there is no fault or emergency stop to reset")),
             ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", self.do_estop),
@@ -228,6 +226,6 @@ class KeyboardMixin:
                             "The jeep patrols a fixed loop (THIRSTOP > E.S.P. CORP. > PARKSILICA > LILIM) and stops at every station. "
                             "You do not need to book or request anything: check the map and the Schedule, and wait at your station.\n\n"
                             "In Passenger mode, My Trip shows the fare and estimated waiting and riding times between two stations.\n\n"
-                            "When the jeep is not needed (low battery, or an operator sends it back) it parks at the terminal.\n\n"
+                            "The jeep remains parked at the terminal until an operator presses Dispatch. Low-battery safety behavior remains automatic.\n\n"
                             "Between stations the jeep's position on the map is an estimate; it is exact only at stations.\n\n"
                             "Fares and times are estimates.")

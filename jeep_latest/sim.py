@@ -25,8 +25,9 @@ class JeepSim:
         self.depot_tag_done = False
         self.stop_here = None
         self.dwell_left = 0.0
-        self.E = self.F = self.B = self.ret = False      # e-stop, line lost, low battery, return ordered
-        self.G = True                                    # go pulse (the demo jeep leaves the depot at once) ...
+        self.E = self.F = self.B = False                # e-stop, line lost, low battery
+        self.ret = False                                 # legacy state flag; no operator return command is exposed
+        self.G = False                                   # stay parked until the Operator presses Dispatch
         self.R = False                                   # ... and reset pulse
         self.dwell = DWELL_S
         self.batt = BATT_FULL
@@ -43,7 +44,7 @@ class JeepSim:
 
     @property
     def paused(self):
-        return self.B or self.ret
+        return self.B
 
     def event(self, ev, **kw):
         self.out.append({"type": "event", "ev": ev, **kw})
@@ -75,11 +76,6 @@ class JeepSim:
             self.event("RESET")
         elif cmd == "dispatch":
             self.G = True
-        elif cmd == "return":
-            if not self.depot and not self.ret:
-                self.ret = True
-                self.event("RETURNING")
-                self.dirty = True
         elif cmd == "dwell":
             v = max(1.0, min(30.0, to_float(c.get("value"), self.dwell)))
             if v != self.dwell:
@@ -184,7 +180,7 @@ class JeepSim:
             self.read_tag(self.next_stop)
 
     def read_tag(self, k):
-        if self.paused:                                               # low battery or returning: no more stops
+        if self.paused:                                               # low battery safety mode: no more scheduled stops
             self.event("TAG_PASS", stop=k)
             self.start_leg(k)
         else:
