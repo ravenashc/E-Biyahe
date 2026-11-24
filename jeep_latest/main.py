@@ -16,10 +16,10 @@ E-BIYAHE - Tkinter jeep tracker for the automated guided e-jeepney diorama.
 Run:   python main.py        (Python 3.8+, Tkinter only, nothing to pip install)
 
 HOW THE SERVICE WORKS (patrol)
-  The jeep drives a one-way loop, counterclockwise (BR > TR > TL > BL), and stops at EVERY station for the
+  The jeep drives a one-way loop, counterclockwise (THIRSTOP > E.S.P. CORP. > PARKSILICA > LILIM), and stops at EVERY station for the
   dwell time. Nobody books or requests anything: the app shows passengers where the jeep is, when it reaches
   each station, and what a trip between two stations costs and how long it takes (estimates).
-  The jeep parks in the depot only when the battery is low or an operator sends it back.
+  The jeep parks at the terminal only when the battery is low or an operator sends it back.
   The app only shows what the jeep reports (operators can also dispatch, return, reset and emergency-stop it).
 
 MODES
@@ -37,9 +37,9 @@ MESSAGES (one JSON object per line)
      "paused":false,"crit":false,"dwell":4,"ir":"010"}
     state = PARKED | RUNNING | LOADING_UNLOADING | OBSTACLE_HOLD | LINE_LOST | EMERGENCY_STOP | LOW_BATTERY
     next  = index of the next station tag the jeep will read; the last station is (next - 1) mod 4.
-            While parked, next is 0 (the jeep leaves the depot toward BR).
-    paused = the jeep is not doing its rounds (low battery, or returning to the depot)
-    LOW_BATTERY is also used for "returning to depot" ordered by the operator.
+            While parked, next is 0 (the jeep leaves the terminal toward BR).
+    paused = the jeep is not doing its rounds (low battery, or returning to the terminal)
+    LOW_BATTERY is also used for a terminal return ordered by the operator.
   Jeep -> app: EVENT (for the log and alerts)
     {"type":"event","ev":"ARRIVED","stop":2}
     ev = ARRIVED DEPARTED TAG_PASS OBSTACLE OBSTACLE_CLEAR FAULT ESTOP RESET DISPATCHED PARKED
@@ -64,7 +64,7 @@ Edit config.py to match your diorama, fares and hours.
 #   config.py        settings you can change (fares, hours, battery levels, operator PIN, file locations, text sizes)
 #   roles.py         who may see and do what: the Passenger and Operator permissions table
 #   theme.py         colors, fonts and spacing shared by every screen
-#   map_data.py      station positions, roads, the depot and the jeep's seven states
+#   map_data.py      station positions, roads, the terminal and the jeep's seven states
 #   helpers.py       small functions (distance, time text, fare, battery percent, saved settings)
 #   models.py        Tracker (what the jeep reports, plus ETA guesses)
 #   sim.py           JeepSim, the pretend jeep used by Demo mode

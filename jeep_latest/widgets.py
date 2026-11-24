@@ -333,7 +333,7 @@ class HeaderBar(ttk.Frame):
         self.mark.configure(width=w, height=h, bg=bg)
         self.mark.delete("all")
         body, ink = (PALETTE["on_color"], PALETTE["on_color"]) if op else (PALETTE["accent"], PALETTE["text"])
-        draw_jeepney(self.mark, w / 2, h / 2 + 0.27 * bh, bw, bh, body, bg, ink)     # +0.27 bh: centres the rack-to-wheels height
+        draw_jeepney(self.mark, w / 2, h / 2 + 0.08 * bh, bw, bh, body, bg, ink)     # centre the compact roof-to-wheel silhouette
 
     def layout_title(self, event=None):
         """Center the title in the bar when it fits clear of the buttons on the right; otherwise keep it at the left edge.

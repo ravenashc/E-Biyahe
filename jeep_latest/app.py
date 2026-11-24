@@ -48,6 +48,7 @@ class App(BuildMixin, FeedbackMixin, KeyboardMixin, CommandMixin, LinkMixin, Ref
         self.pin_dialog = None         # the PIN window while it is open
         self.mode_var = tk.StringVar(value=load_connection())   # Demo or Wi-Fi, as used last time (Demo the first time)
         self.names = [s[0] for s in STOPS]
+        self.short_names = [name.removesuffix(" Station") for name in self.names]
         self.sc, self.ox, self.oy = 1.0, 0.0, 0.0
         self.build_ui()
         self.bind_keys()

@@ -36,15 +36,15 @@ class LinkMixin:
         elif ev == "RESET":
             self.log_add("Reset")
         elif ev == "DISPATCHED":
-            self.log_add("Jeep left the depot")
+            self.log_add("Jeep left the terminal")
         elif ev == "PARKED":
-            self.log_add("Jeep parked at the depot")
+            self.log_add("Jeep parked at the terminal")
         elif ev == "BATT_OK":
             self.log_add("Battery recharged: service resumed", "ok")
         elif ev in ("LOW_BATT", "RETURNING"):
-            why = "low battery" if ev == "LOW_BATT" else "return to depot ordered"
+            why = "low battery" if ev == "LOW_BATT" else "return to terminal ordered"
             volts = f" ({m.get('batt')} V)" if ev == "LOW_BATT" else ""
-            self.log_add(f"{why.capitalize()}{volts}: returning to the depot", "warn")
+            self.log_add(f"{why.capitalize()}{volts}: returning to the terminal", "warn")
 
     # ---------- connection ----------
     def toggle_connection(self):

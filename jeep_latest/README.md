@@ -1,12 +1,14 @@
 # E-Biyahe
 
-A Tkinter tracking app for a patrolling automated guided e-jeepney (ESP32-S3 controller).
-The jeep drives its loop and stops at every station. Commuters see where it is, when it reaches each station,
-and look up the fare and travel time between two stations (nothing is booked); operators monitor and dispatch the jeep.
+A Tkinter tracking app for a patrolling automated guided e-jeepney (ESP32-S3 controller). The jeep drives a fixed loop and stops at every station. Commuters see where it is, when it reaches each station, and look up fares and travel times (nothing is booked); operators connect, dispatch and monitor the vehicle without choosing passenger routes.
 A built-in Demo mode with a simulated jeep lets every feature be tested without the hardware.
 
 The app opens in **Passenger mode** (map, status, trip planner, schedule). The **Operator sign-in** button in the
 top bar unlocks the dispatch controls, connection settings, log and Demo tools.
+
+## Station order
+
+The automatic patrol visits **THIRSTOP Station (BR)**, **E.S.P. CORP. Station (TR)**, **PARKSILICA Station (TL)**, then **LILIM Station (BL)**. Operators dispatch and monitor the fixed loop; route selection is available only in Passenger mode.
 
 ## Run
 
@@ -29,7 +31,7 @@ Rows that change text (the alert line, the route, the reasons under buttons) kee
 | `config.py` | Settings you can change: fares, hours, battery levels, operator PIN, file locations, text sizes. |
 | `roles.py` | Who may see and do what: the one permissions table for Passenger and Operator. |
 | `theme.py` | Colors, fonts and spacing, and the functions that apply them to Tk. The colors are the project palette: navy `#081A3D`, blue `#1F5AA6`, sky `#8BB8FF`, tan `#EAD2A8` and cream `#FFF6E5`. |
-| `map_data.py` | The map as data: station positions, roads, landmarks, the depot and the jeep's seven states. |
+| `map_data.py` | The map as data: station positions, roads, landmarks, the terminal and the jeep's seven states. |
 | `helpers.py` | Small functions: distances, time text, fare, battery percent, saved settings. |
 | `models.py` | `Tracker` (what the jeep reports, plus ETA guesses). |
 | `sim.py` | `JeepSim`, the pretend jeep used by Demo mode. |
@@ -87,11 +89,13 @@ value from before it was chosen.
 | | Passenger | Operator |
 |---|---|---|
 | Map, map key, status card | yes | yes |
-| Plan trip (fare and times), Schedule | yes | yes |
-| Battery bar | no (a warning appears when it matters) | yes |
+| My Trip (fare and times), Schedule | yes | Schedule only |
+| Battery progress bar | removed | removed |
 | Connection box (Demo or Wi-Fi) | hidden: the app connects by itself | yes |
 | Operator and Log tabs, Demo menu, log export | hidden | yes |
 | EMERGENCY STOP | hidden | red button fixed at the bottom of the right-hand column, visible from every tab |
+
+The status-card battery percentage and progress bar are removed. The Operator live readout keeps the numeric battery-voltage diagnostic, and the low-battery return safety logic remains active.
 
 - The app always starts in Passenger mode and connects to the connection used last time (Demo mode the first time).
 - **Operator sign-in** (top right, or Ctrl+L) asks for the PIN. Wrong PINs are explained in the window.

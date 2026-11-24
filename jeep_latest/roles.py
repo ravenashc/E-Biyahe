@@ -1,33 +1,37 @@
-"""Who may see and do what: the Passenger and Operator roles.
+"""Who may see and do what in Passenger and Operator modes.
 
-One table (OPERATOR_ONLY) lists everything reserved for operators; everything that is not listed is
-available to both roles. The rest of the program asks allowed(...) instead of scattering
-`if operator:` checks around, so changing what a role can use means changing this table only.
-
-The PIN that unlocks Operator mode lives in config.py. It prevents accidents (a passenger tapping
-Dispatch); it is not real security, because anyone who can read the file can read the PIN."""
+OPERATOR_ONLY reserves dispatch and diagnostic controls for operators. The trip planner is
+passenger-only: operators run the fixed automatic patrol and cannot choose a route.
+"""
 
 from config import TAB_NAMES
 
 
-# ======================= ROLES =======================
 PASSENGER, OPERATOR = "passenger", "operator"
 ROLE_LABEL = {PASSENGER: "Passenger mode", OPERATOR: "Operator mode"}
 
-
-# ======================= PERMISSIONS =======================
 OPERATOR_ONLY = {
-    "tabs": ("Operator", "Log"),                                              # tab names (see TAB_NAMES in config.py)
-    "menus": ("Operator", "Demo"),                                            # menu bar entries
-    "panels": ("connection", "battery", "estop"),                             # connection box, battery bar, emergency-stop button
-    "shortcuts": ("connect", "export", "dispatch", "return", "reset", "estop"),   # ids in the shortcut table (app_keyboard.py)
+    "tabs": ("Operator", "Log"),
+    "menus": ("Operator", "Demo"),
+    "panels": ("connection", "estop"),
+    "shortcuts": ("connect", "export", "dispatch", "return", "reset", "estop"),
+}
+
+# The operator controls the vehicle but does not choose a passenger boarding/alighting route.
+OPERATOR_HIDDEN = {
+    "tabs": ("My Trip",),
 }
 
 
 def allowed(role, kind, name):
-    """True if `role` may use `name` of the given kind ('tabs', 'menus', 'panels' or 'shortcuts')."""
+    """Return whether a role may use a tab, menu, panel or shortcut."""
+    if kind == "shortcuts" and name.startswith("tab") and name[3:].isdigit():
+        index = int(name[3:]) - 1
+        if not 0 <= index < len(TAB_NAMES):
+            return False
+        return allowed(role, "tabs", TAB_NAMES[index])
     if role == OPERATOR:
+        if kind == "tabs":
+            return name not in OPERATOR_HIDDEN["tabs"]
         return True
-    if kind == "shortcuts" and name.startswith("tab") and name[3:].isdigit():   # Ctrl+1 ... Ctrl+4 follow the tabs they open
-        return TAB_NAMES[int(name[3:]) - 1] not in OPERATOR_ONLY["tabs"]
     return name not in OPERATOR_ONLY[kind]

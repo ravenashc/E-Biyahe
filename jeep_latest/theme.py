@@ -38,7 +38,9 @@ PALETTE = {
     "map_block_edge": "#D2B98A",
     "map_road": NAVY,            # main roads
     "map_road_line": CREAM,      # dashed line down the middle of the main road
-    "map_street": "#FFFCF5",     # decorative side streets (the jeep never drives these)
+    "map_street": NAVY,           # asphalt for the connecting streets
+    "map_crosswalk": "#FFFDF7", # zebra-crossing paint
+    "map_box": "#F2C400",       # yellow keep-clear box at the central junction
     "map_depot_fill": "#FFFCF5",
     "map_depot_edge": "#D2B98A",
     "map_route": SKY,            # highlight for the trip being planned: sky blue stands out on the navy road
@@ -47,7 +49,26 @@ PALETTE = {
     "map_lm_roof": BLUE,         # landmark roofs, awnings and doors
     "map_lm_line": NAVY,         # landmark outlines
     "map_lm_glass": SKY,         # windows on landmarks and on the jeepney
-    "map_jeep_stripe": TAN,      # the side stripe and headlight on the jeepney
+    "map_site_soil": "#514538",      # exposed construction ground
+    "map_site_gravel": "#89877F",    # crushed stone and aggregate
+    "map_site_concrete": "#B5BEC4", # unfinished concrete structure
+    "map_site_steel": "#657583",     # columns, bracing and crane steel
+    "map_site_fence": "#173C72",    # blue corrugated site hoarding
+    "map_site_yellow": "#F0A51A",   # crane and construction equipment
+    "map_site_machine": "#D97716",  # equipment bodywork
+    "map_site_servo_orange": "#F36B18", # bright orange servo-arm shells
+    "map_site_servo_dark": "#30343A",   # dark joint collars and motor housings
+    "map_site_servo_black": "#090C12",  # black robot base and servo caps
+    "map_site_servo_silver": "#B7C0C8", # metal gripper and fasteners
+    # Model-matched e-jeepney: blue roof, white cabin, red lower body, yellow rear and wheel hubs.
+    "map_jeep_roof": "#0878D1",
+    "map_jeep_white": "#F1F2F3",
+    "map_jeep_red": "#B52E35",
+    "map_jeep_yellow": "#F2D21A",
+    "map_jeep_window": "#151A21",
+    "map_jeep_tire": "#101318",
+    "map_jeep_hub": "#F3D21C",
+    "map_jeep_trim": "#303943",
     # log table
     "stripe": "#F8EBD2",         # every second row of the Log table (plain rows)
 }
@@ -234,10 +255,6 @@ def apply_styles(root):
                 arrowcolor=P["muted"], gripcount=0)
     s.map("Vertical.TScrollbar", background=[("active", P["muted"]), ("pressed", P["muted"])])
 
-    # ----- battery bar in three colors (see App.set_battery) -----
-    for name, color in (("Ok", "ok"), ("Warn", "warn"), ("Danger", "danger")):
-        s.configure(f"{name}.Horizontal.TProgressbar", troughcolor=P["border"], background=P[color],
-                    bordercolor=P["border"], lightcolor=P[color], darkcolor=P[color], thickness=10)
 
 
 def apply_text_size(root, percent):
