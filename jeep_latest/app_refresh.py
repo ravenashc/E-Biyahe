@@ -24,7 +24,7 @@ class RefreshMixin:
         The emergency stop is never disabled."""
         tr = self.tr
         online = self.fresh(now)
-        on_road = online and not tr.depot          # the jeep is out driving, not parked in the depot
+        on_road = online and not tr.depot          # the jeep is out driving, not parked at the terminal
         stopped = online and tr.state == "EMERGENCY_STOP"      # locked: nothing can move the jeep again until Reset is pressed
 
         off = self.offline_reason()
@@ -40,7 +40,7 @@ class RefreshMixin:
         can_return = on_road and not tr.paused and not stopped
         set_enabled(self.btn_return, can_return)
         self.set_hint(self.lbl_return_hint, "" if can_return else off if not online else locked if stopped else
-                      "The jeep is already in the depot." if tr.depot else "Already returning to the depot.")
+                      "The jeep is already at the terminal." if tr.depot else "Already returning to the terminal.")
         can_reset = online and tr.state in ("EMERGENCY_STOP", "LINE_LOST")
         set_enabled(self.btn_reset, can_reset)
         self.set_hint(self.lbl_reset_hint, "" if can_reset else off if not online else "No fault or emergency stop to reset.")
@@ -117,7 +117,6 @@ class RefreshMixin:
             self.badge.set("Offline", PALETTE["muted"])
             self.v_next.set("-")
             self.v_eta.set("-")
-            self.set_battery(None)
             if self.role == PASSENGER:
                 self.show_alert("The service is unavailable right now. Please try again in a moment.", "warn")
             else:
@@ -126,7 +125,7 @@ class RefreshMixin:
 
         # ----- state badge and next station -----
         self.badge.set(self.state_text(), STATE_COLOR.get(tr.state, PALETTE["muted"]))
-        self.v_next.set("-" if tr.state == "PARKED" else self.names[tr.next_stop])
+        self.v_next.set("-" if tr.state == "PARKED" else self.short_names[tr.next_stop])
 
         # ----- arrival time -----
         eta = tr.eta_to_next(now)
@@ -134,9 +133,6 @@ class RefreshMixin:
             self.v_eta.set("-" if tr.state == "PARKED" else "paused")
         else:
             self.v_eta.set("arriving" if eta < 1 else fmt_dur(eta))
-
-        # ----- battery bar -----
-        self.set_battery(tr)
 
         # ----- alert line: red for danger, amber for caution -----
         if tr.state == "EMERGENCY_STOP":
@@ -146,25 +142,9 @@ class RefreshMixin:
         elif tr.state == "OBSTACLE_HOLD":
             self.show_alert("Obstacle ahead: waiting for it to clear.", "warn")
         elif tr.paused:
-            self.show_alert("LOW BATTERY: returning to the depot." if tr.lowbatt else "The jeep is returning to the depot.", "warn")
+            self.show_alert("LOW BATTERY: returning to the terminal." if tr.lowbatt else "The jeep is returning to the terminal.", "warn")
         else:
             self.show_alert("")
-
-    def set_battery(self, tr):
-        """Fill the battery bar and its percentage. Pass None (or a Tracker with no reading) for an empty bar."""
-        if tr is None or tr.batt is None:
-            self.batt_bar.config(value=0, style="Ok.Horizontal.TProgressbar")
-            self.v_batt.set("Battery: -")
-            return
-        pct = batt_pct(tr.batt)
-        if tr.crit:
-            level, tag = "Danger", " (critical)"
-        elif tr.lowbatt:
-            level, tag = "Warn", " (low)"
-        else:
-            level, tag = "Ok", ""
-        self.batt_bar.config(value=pct, style=f"{level}.Horizontal.TProgressbar")
-        self.v_batt.set(f"Battery: ~{pct:.0f}%{tag}")   # "~" because the percentage is an estimate from volts
 
     def show_alert(self, text, level="danger"):
         """Show the alert line in the status card in the palette color named by `level`;
@@ -173,6 +153,9 @@ class RefreshMixin:
         self.lbl_alert.config(foreground=PALETTE[level])
 
     def trip_ends(self):
+        # Trip planning is passenger-only. Operators see the automatic patrol, not a selectable route highlight.
+        if self.role != PASSENGER:
+            return 0, 0
         return self.names.index(self.from_var.get()), self.names.index(self.to_var.get())
 
     def refresh_trip(self, now):
@@ -184,7 +167,7 @@ class RefreshMixin:
             return
         cat = self.cat_var.get()
         legs = (b - a) % N
-        stops = [self.names[(a + k) % N].split()[0] for k in range(legs + 1)]       # short names ("BR", "TL" ...) so the route fits
+        stops = [self.short_names[(a + k) % N] for k in range(legs + 1)]       # compact station names so the route fits
         self.v_route.set(" > ".join(stops) + f"  ({legs} leg{'s' if legs > 1 else ''})" + "")
         self.v_fare.set(f"{CURRENCY}{fare_for(legs, cat):.2f}")
         ride = sum(self.tr.leg_est[(a + k) % N] for k in range(legs)) + self.tr.dwell * (legs - 1)     # the jeep stops at every station on the way

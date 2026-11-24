@@ -128,8 +128,7 @@ class BuildMixin:
         ttk.Label(f, textvariable=self.v_conn, style="CardMuted.TLabel").grid(row=1, column=0, columnspan=3, sticky="w", pady=(PAD, 0))
 
     def build_status(self, parent):
-        """Status card. The most important facts (state, next stop, ETA) are large and sit at the top;
-        the battery follows. Kept compact so the tabs below stay fully visible."""
+        """Status card. The current state, next stop, arrival estimate and important alerts stay visible at a glance."""
         card = ttk.Frame(parent, style="Card.TFrame", padding=(PAD_L, PAD))
         card.pack(fill="x")
         self.status_card = card
@@ -138,7 +137,6 @@ class BuildMixin:
 
         # ----- values shown in this card (changing one updates the screen) -----
         self.v_next, self.v_eta = tk.StringVar(), tk.StringVar()
-        self.v_batt = tk.StringVar(value="Battery: -")
         self.v_alert = tk.StringVar()
 
         # ----- top line: the live state (colored dot and word), then a thin rule -----
@@ -152,51 +150,52 @@ class BuildMixin:
         ttk.Label(card, textvariable=self.v_next, style="CardDisplay.TLabel").grid(row=3, column=0, sticky="w")
         ttk.Label(card, style="CardMuted.TLabel", text="Arrives in").grid(row=2, column=1, sticky="w", padx=(PAD_L, 0))
         ttk.Label(card, textvariable=self.v_eta, style="CardTitle.TLabel").grid(row=3, column=1, sticky="w", padx=(PAD_L, 0))
-        self.reserve_width(card, 0, F_DISPLAY, self.names)
+        self.reserve_width(card, 0, F_DISPLAY, self.short_names)
         self.reserve_width(card, 1, F_TITLE, ["10 min 59 s"], extra=PAD_L)
-
-        # ----- battery: percentage text above a colored bar (operators only) -----
-        self.batt_label = ttk.Label(card, textvariable=self.v_batt, style="CardMuted.TLabel")
-        self.batt_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=(PAD, 0))
-        self.batt_bar = ttk.Progressbar(card, maximum=100, style="Ok.Horizontal.TProgressbar")
-        self.batt_bar.grid(row=5, column=0, columnspan=2, sticky="we", pady=(PAD_S, 0))
-        self.batt_widgets = (self.batt_label, self.batt_bar)     # shown to operators only (see apply_role)
 
         # ----- alert line: its two lines of room are always kept, so an alert appearing never pushes the tabs down -----
         self.lbl_alert = ttk.Label(card, textvariable=self.v_alert, style="Alert.TLabel", wraplength=WRAP)
-        self.lbl_alert.grid(row=6, column=0, columnspan=2, sticky="nw", pady=(PAD_S, 0))
-        self.reserve(card, 6, F_HEADING, 2)
+        self.lbl_alert.grid(row=4, column=0, columnspan=2, sticky="nw", pady=(PAD_S, 0))
+        self.reserve(card, 4, F_HEADING, 2)
 
     def build_trip(self, nb):
-        """Plan trip tab: choose two stations and a passenger type to see the fare and the times. Nothing is booked:
-        the jeep patrols and stops at every station, so this is only a look-up."""
+        """Passenger trip planner: choose boarding and alighting stops to look up fare and estimated times."""
         f = ttk.Frame(nb, padding=PAD)
-        # ----- trip choices -----
+        f.columnconfigure(0, weight=1)
+        f.columnconfigure(1, weight=1)
+
+        # Full station names use the full card width and are stacked to remain readable.
+        ttk.Label(f, text="Ride on at").grid(row=0, column=0, columnspan=2, sticky="w")
         self.from_var = tk.StringVar(value=self.names[0])
+        self.cb_from = ttk.Combobox(f, values=self.names, textvariable=self.from_var, state="readonly", width=22)
+        self.cb_from.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(PAD_S, 0))
+
+        ttk.Label(f, text="Get off at").grid(row=2, column=0, columnspan=2, sticky="w", pady=(PAD, 0))
         self.to_var = tk.StringVar(value=self.names[2])
+        self.cb_to = ttk.Combobox(f, values=self.names, textvariable=self.to_var, state="readonly", width=22)
+        self.cb_to.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(PAD_S, 0))
+
+        ttk.Label(f, text="Passenger").grid(row=4, column=0, sticky="w", pady=(PAD, 0))
+        ttk.Label(f, text="Fare").grid(row=4, column=1, sticky="w", padx=(PAD, 0), pady=(PAD, 0))
         self.cat_var = tk.StringVar(value="Regular")
-        for col, text in ((0, "Ride on at"), (1, "Get off at")):          # two drop-down boxes side by side ...
-            ttk.Label(f, text=text).grid(row=0, column=col, sticky="w", padx=(0 if col == 0 else PAD, 0))
-        self.cb_from = ttk.Combobox(f, values=self.names, textvariable=self.from_var, state="readonly", width=11)
-        self.cb_from.grid(row=1, column=0, sticky="w", pady=(PAD_S, 0))
-        self.cb_to = ttk.Combobox(f, values=self.names, textvariable=self.to_var, state="readonly", width=11)
-        self.cb_to.grid(row=1, column=1, sticky="w", padx=(PAD, 0), pady=(PAD_S, 0))
-        # ----- ... and under them the passenger type and the fare it gives -----
-        ttk.Label(f, text="Passenger").grid(row=2, column=0, sticky="w", pady=(PAD, 0))
-        ttk.Label(f, text="Fare").grid(row=2, column=1, sticky="w", padx=(PAD, 0), pady=(PAD, 0))
-        ttk.Combobox(f, values=list(DISCOUNTS), textvariable=self.cat_var, state="readonly", width=11).grid(row=3, column=0, sticky="w", pady=(PAD_S, 0))
+        ttk.Combobox(f, values=list(DISCOUNTS), textvariable=self.cat_var, state="readonly", width=11).grid(
+            row=5, column=0, sticky="w", pady=(PAD_S, 0))
         self.v_route, self.v_fare, self.v_wait = tk.StringVar(), tk.StringVar(), tk.StringVar()
         self.v_ride, self.v_total, self.v_arrive = tk.StringVar(), tk.StringVar(), tk.StringVar()
-        ttk.Label(f, textvariable=self.v_fare, font=F_TITLE, width=9).grid(row=3, column=1, sticky="w", padx=(PAD, 0), pady=(PAD_S, 0))
-        # ----- the route, then the four times (one per row, every value a fixed width) -----
-        ttk.Label(f, textvariable=self.v_route, wraplength=WRAP, style="Muted.TLabel").grid(row=4, column=0, columnspan=2, sticky="nw", pady=(PAD, 0))
-        self.reserve(f, 4, F_BODY, 1)                      # the route is one short line: its room is always kept
+        ttk.Label(f, textvariable=self.v_fare, font=F_TITLE, width=9).grid(
+            row=5, column=1, sticky="w", padx=(PAD, 0), pady=(PAD_S, 0))
+
+        ttk.Label(f, textvariable=self.v_route, wraplength=WRAP, style="Muted.TLabel").grid(
+            row=6, column=0, columnspan=2, sticky="nw", pady=(PAD, 0))
+        self.reserve(f, 6, F_BODY, 1)
         sm = ttk.Frame(f)
-        sm.grid(row=5, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
-        rows = (("Jeep reaches you in", self.v_wait), ("Ride time", self.v_ride), ("Total", self.v_total), ("You arrive at", self.v_arrive))
-        for r, (t, v) in enumerate(rows):
-            ttk.Label(sm, text=t).grid(row=r, column=0, sticky="w")
-            ttk.Label(sm, textvariable=v, font=F_HEADING, width=11).grid(row=r, column=1, sticky="w", padx=(PAD, 0))
+        sm.grid(row=7, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
+        rows = (("Jeep reaches you in", self.v_wait), ("Ride time", self.v_ride),
+                ("Total", self.v_total), ("You arrive at", self.v_arrive))
+        for r, (label, value) in enumerate(rows):
+            ttk.Label(sm, text=label).grid(row=r, column=0, sticky="w")
+            ttk.Label(sm, textvariable=value, font=F_HEADING, width=11).grid(
+                row=r, column=1, sticky="w", padx=(PAD, 0))
         return f
 
     def build_schedule(self, nb):
@@ -211,7 +210,7 @@ class BuildMixin:
         ttk.Label(f, textvariable=self.v_svc, wraplength=WRAP).pack(anchor="w", pady=(0, PAD_S))
         self.tree = ttk.Treeview(f, columns=("stn", "next", "after"), show="headings", height=4,
                                  style="Compact.Treeview", takefocus=0)            # read-only: nothing to do in it, so Tab skips it
-        for c, t, w in (("stn", "Station", 100), ("next", "Jeep passes", 95), ("after", "Following", 95)):
+        for c, t, w in (("stn", "Station", 140), ("next", "Jeep passes", 68), ("after", "Following", 68)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, anchor="w")
         for i, n in enumerate(self.names):
@@ -228,7 +227,7 @@ class BuildMixin:
         bar.pack(fill="x")
         # each button sits in its own column with the reason it is off right under it (shown only then)
         specs = (("btn_dispatch", "lbl_dispatch_hint", "Dispatch", "Primary.TButton", self.do_dispatch),
-                 ("btn_return", "lbl_return_hint", "To depot", "TButton", lambda: self.op("return")),
+                 ("btn_return", "lbl_return_hint", "To terminal", "TButton", lambda: self.op("return")),
                  ("btn_reset", "lbl_reset_hint", "Reset", "TButton", lambda: self.op("reset")))
         for col, (btn_name, hint_name, text, style, command) in enumerate(specs):
             pad = (0 if col == 0 else PAD, 0)

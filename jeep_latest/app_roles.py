@@ -136,8 +136,14 @@ class RolesMixin:
         # ----- tabs -----
         for i, name in enumerate(TAB_NAMES):
             self.nb.tab(i, state="normal" if allowed(role, "tabs", name) else "hidden")
-        if not allowed(role, "tabs", TAB_NAMES[self.nb.index("current")]):
-            self.nb.select(0)                                  # the open tab was just hidden: go to the first one
+        # Always open the useful home tab for the new role. In Operator mode the
+        # passenger My Trip tab is hidden, so the dispatch controls should open
+        # directly rather than leaving the operator on Schedule.
+        preferred_name = "Operator" if role == OPERATOR else "My Trip"
+        preferred_tab = next((tab for tab in self.nb.tabs()
+                              if self.nb.tab(tab, "text") == preferred_name), None)
+        if preferred_tab is not None:
+            self.nb.select(preferred_tab)
         self.pills.refresh()                                   # the pills follow: show only the tabs this role may use
 
         # ----- emergency stop: under the right-hand column, only for operators (see build_ui) -----
@@ -146,17 +152,11 @@ class RolesMixin:
         else:
             self.estop.grid_remove()
 
-        # ----- panels: connection box in the Operator tab (above the live readout), battery bar inside the status card -----
+        # ----- panels: the connection box sits in the Operator tab above the live readout -----
         if allowed(role, "panels", "connection"):
             self.conn_box.pack(fill="x", pady=(PAD, 0), before=self.live_card)
         else:
             self.conn_box.pack_forget()
-        for widget in self.batt_widgets:
-            if allowed(role, "panels", "battery"):
-                widget.grid()
-            else:
-                widget.grid_remove()
-
         # ----- menu bar (rebuilt: operator menus and items exist only in Operator mode) -----
         self.build_menu()
         self.fit_tabs()

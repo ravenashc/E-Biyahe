@@ -30,6 +30,6 @@ OPERATOR_IDLE_MIN = 10         # Operator mode signs out by itself after this ma
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "log.csv")
 SETTINGS_FILE = os.path.join(os.path.dirname(LOG_FILE), "settings.json")    # remembers the text size between runs
 TEXT_SIZES = (100, 115, 130, 150)   # text size steps in percent of normal (the first one is the normal size)
-TAB_NAMES = ("Plan trip", "Schedule", "Operator", "Log")                    # tab order: Ctrl+1 ... Ctrl+4
+TAB_NAMES = ("My Trip", "Schedule", "Operator", "Log")                    # tab order: Ctrl+1 ... Ctrl+4
 IS_MAC = sys.platform == "darwin"
 MOD, MOD_NAME = ("Command", "Cmd") if IS_MAC else ("Control", "Ctrl")      # the main shortcut key

@@ -7,7 +7,7 @@ from tkinter import font as tkfont, messagebox
 
 from config import MOD, MOD_NAME, TAB_NAMES, TEXT_SIZES
 from helpers import chord, save_text_size
-from roles import allowed
+from roles import OPERATOR, allowed
 from theme import apply_text_size, MAP_MIN_PT, RIGHT_W
 
 
@@ -25,8 +25,8 @@ class KeyboardMixin:
         rows += [
             ("dispatch", f"{M}+Shift+D", chord("d", True), "Dispatch",
              lambda: self.press(self.btn_dispatch, "Dispatch", "the jeep must be parked and online")),
-            ("return", f"{M}+Shift+H", chord("h", True), "Return to depot",
-             lambda: self.press(self.btn_return, "Return to depot", "the jeep must be out on the road and not in an emergency stop")),
+            ("return", f"{M}+Shift+H", chord("h", True), "Return to terminal",
+             lambda: self.press(self.btn_return, "Return to terminal", "the jeep must be out on the road and not in an emergency stop")),
             ("reset", f"{M}+Shift+F", chord("f", True), "Reset fault",
              lambda: self.press(self.btn_reset, "Reset fault", "there is no fault or emergency stop to reset")),
             ("estop", f"{M}+Shift+E", chord("e", True), "EMERGENCY STOP", self.do_estop),
@@ -90,7 +90,9 @@ class KeyboardMixin:
     def show_tab(self, i):
         """Switch to tab number i and put the keyboard focus on its first safe control."""
         if not allowed(self.role, "tabs", TAB_NAMES[i]):
-            self.show_message(f"The {TAB_NAMES[i]} tab is for operators. Sign in with the button at the top right ({MOD_NAME}+L).", "warn")
+            message = ("Trip planning is available in Passenger mode." if self.role == OPERATOR
+                       else f"The {TAB_NAMES[i]} tab is for operators. Sign in with the button at the top right ({MOD_NAME}+L).")
+            self.show_message(message, "info" if self.role == OPERATOR else "warn")
             return
         self.nb.select(i)
         self.update_idletasks()
@@ -223,10 +225,9 @@ class KeyboardMixin:
 
     def show_help(self):
         messagebox.showinfo("How it works",
-                            "The jeep patrols a loop (Bottom Right > Top Right > Top Left > Bottom Left) and stops at every station. "
+                            "The jeep patrols a fixed loop (THIRSTOP > E.S.P. CORP. > PARKSILICA > LILIM) and stops at every station. "
                             "You do not need to book or request anything: check the map and the Schedule, and wait at your station.\n\n"
-                            "Plan trip shows the fare and the estimated waiting and riding times between two stations.\n\n"
-                            "When the jeep is not needed (low battery, or an operator sends it back) it parks in the depot.\n\n"
-                            "Between stations the jeep's position on the map is an estimate; "
-                            "it is exact only at stations.\n\n"
+                            "In Passenger mode, My Trip shows the fare and estimated waiting and riding times between two stations.\n\n"
+                            "When the jeep is not needed (low battery, or an operator sends it back) it parks at the terminal.\n\n"
+                            "Between stations the jeep's position on the map is an estimate; it is exact only at stations.\n\n"
                             "Fares and times are estimates.")
