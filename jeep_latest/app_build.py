@@ -155,7 +155,7 @@ class BuildMixin:
         self.reserve(card, 4, F_HEADING, 2)
 
     def build_trip(self, nb):
-        """Passenger trip planner: choose boarding and alighting stops to look up fare and estimated times."""
+        """Passenger trip planner: choose boarding and alighting stops to look up fare."""
         f = ttk.Frame(nb, padding=PAD)
         f.columnconfigure(0, weight=1)
         f.columnconfigure(1, weight=1)
@@ -176,22 +176,13 @@ class BuildMixin:
         self.cat_var = tk.StringVar(value="Regular")
         ttk.Combobox(f, values=list(DISCOUNTS), textvariable=self.cat_var, state="readonly", width=11).grid(
             row=5, column=0, sticky="w", pady=(PAD_S, 0))
-        self.v_route, self.v_fare, self.v_wait = tk.StringVar(), tk.StringVar(), tk.StringVar()
-        self.v_ride, self.v_total, self.v_arrive = tk.StringVar(), tk.StringVar(), tk.StringVar()
+        self.v_route, self.v_fare = tk.StringVar(), tk.StringVar()
         ttk.Label(f, textvariable=self.v_fare, font=F_TITLE, width=9).grid(
             row=5, column=1, sticky="w", padx=(PAD, 0), pady=(PAD_S, 0))
 
         ttk.Label(f, textvariable=self.v_route, wraplength=WRAP, style="Muted.TLabel").grid(
             row=6, column=0, columnspan=2, sticky="nw", pady=(PAD, 0))
         self.reserve(f, 6, F_BODY, 1)
-        sm = ttk.Frame(f)
-        sm.grid(row=7, column=0, columnspan=2, sticky="w", pady=(PAD_S, 0))
-        rows = (("Jeep reaches you in", self.v_wait), ("Ride time", self.v_ride),
-                ("Total", self.v_total), ("You arrive at", self.v_arrive))
-        for r, (label, value) in enumerate(rows):
-            ttk.Label(sm, text=label).grid(row=r, column=0, sticky="w")
-            ttk.Label(sm, textvariable=value, font=F_HEADING, width=11).grid(
-                row=r, column=1, sticky="w", padx=(PAD, 0))
         return f
 
     def build_schedule(self, nb):

@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 from config import CLOSE_TIME, CURRENCY, OPEN_TIME, STALE_S
-from helpers import batt_pct, fare_for, fmt12, fmt_clock, fmt_dur, set_enabled
+from helpers import batt_pct, fare_for, fmt12, fmt_clock, set_enabled
 from map_data import N, STATE_COLOR, STATE_TEXT
 from roles import PASSENGER
 from sources import DemoSource
@@ -148,8 +148,7 @@ class RefreshMixin:
     def refresh_trip(self, now):
         a, b = self.trip_ends()
         if a == b:
-            for v in (self.v_fare, self.v_wait, self.v_ride, self.v_total, self.v_arrive):
-                v.set("-")
+            self.v_fare.set("-")
             self.v_route.set("Choose two different stations.")
             return
         cat = self.cat_var.get()
@@ -157,17 +156,6 @@ class RefreshMixin:
         stops = [self.short_names[(a + k) % N] for k in range(legs + 1)]       # compact station names so the route fits
         self.v_route.set(" > ".join(stops) + f"  ({legs} leg{'s' if legs > 1 else ''})" + "")
         self.v_fare.set(f"{CURRENCY}{fare_for(legs, cat):.2f}")
-        ride = sum(self.tr.leg_est[(a + k) % N] for k in range(legs)) + self.tr.dwell * (legs - 1)     # the jeep stops at every station on the way
-        self.v_ride.set(fmt_dur(ride))
-        wait = self.tr.eta_to_stop(a, now, dispatch=not self.tr.paused) if self.fresh(now) else None
-        if wait is None:
-            self.v_wait.set("unknown")
-            self.v_total.set("-")
-            self.v_arrive.set("-")
-        else:
-            self.v_wait.set("at the station now" if wait == 0 else fmt_dur(wait))
-            self.v_total.set(fmt_dur(wait + ride))
-            self.v_arrive.set(fmt_clock(now + wait + ride))
 
     def refresh_schedule(self, now):
         t = datetime.now().time()

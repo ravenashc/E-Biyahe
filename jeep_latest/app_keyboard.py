@@ -225,7 +225,7 @@ class KeyboardMixin:
         messagebox.showinfo("How it works",
                             "The jeep patrols a fixed loop (THIRSTOP > E.S.P. CORP. > PARKSILICA > LILIM) and stops at every station. "
                             "You do not need to book or request anything: check the map and the Schedule, and wait at your station.\n\n"
-                            "In Passenger mode, My Trip shows the fare and estimated waiting and riding times between two stations.\n\n"
+                            "In Passenger mode, My Trip shows the route and fare between two stations.\n\n"
                             "The jeep remains parked at the terminal until an operator presses Dispatch. Low-battery safety behavior remains automatic.\n\n"
                             "Between stations the jeep's position on the map is an estimate; it is exact only at stations.\n\n"
                             "Fares and times are estimates.")
